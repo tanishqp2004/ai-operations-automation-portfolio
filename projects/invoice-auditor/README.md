@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-An AI-assisted invoice auditing workflow built using Make.com and Google Gemini. It extracts key information from invoices, checks whether the subtotal and tax add up to the stated total, records the results in Google Sheets, and sends email alerts when discrepancies are detected.
+An AI-assisted invoice auditing workflow built using Make.com and Google Gemini. It extracts key information from invoices, checks whether the subtotal and tax add up to the stated total, records audit results in Google Sheets, and sends email alerts when discrepancies are detected.
 
 ## 2. Business Problem
 
@@ -62,6 +62,7 @@ The workflow automates invoice intake, data extraction, arithmetic validation, r
 **Built — Testing and refinement in progress.**
 
 This project was built independently with Gemini used as a learning assistant during development. The workflow is currently inactive and is not being used for production invoice processing.
+
 ## 10. Workflow Architecture — Visual
 
-![Invoice Auditor Workflow](screenshots/invoice-auditor-workflow.png)
+![Invoice Auditor Workflow](../../screenshotsinvoice-auditor-workflow.png)
