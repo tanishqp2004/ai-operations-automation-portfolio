@@ -62,3 +62,6 @@ The workflow automates invoice intake, data extraction, arithmetic validation, r
 **Built — Testing and refinement in progress.**
 
 This project was built independently with Gemini used as a learning assistant during development. The workflow is currently inactive and is not being used for production invoice processing.
+## 10. Workflow Architecture — Visual
+
+![Invoice Auditor Workflow](screenshots/invoice-auditor-workflow.png)
