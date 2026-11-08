@@ -70,4 +70,4 @@ This workflow was built using Make.com and Gemini, with Gemini also used as a le
 
 ## Workflow Architecture — Visual
 
-![Lead Triage Workflow](./Screenshot\ \(95\).png)
+![Lead Triage Workflow](https://github.com/tanishqp2004/ai-operations-automation-portfolio/blob/main/projects/lead-triage/Screenshot%20%2895%29.png?raw=1)
