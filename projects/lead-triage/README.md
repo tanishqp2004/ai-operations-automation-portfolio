@@ -67,6 +67,7 @@ This workflow can support sales teams, service businesses, agencies, and custome
 **Built — Testing and refinement in progress.**
 
 This workflow was built using Make.com and Gemini, with Gemini also used as a learning assistant during development. The scenario is currently inactive and is not being used in production.
+
 ## Workflow Architecture — Visual
 
-![AI Invoice Auditor Workflow](screenshots/invoice-auditor-workflow.png)
+![Lead Triage Workflow](./Screenshot\ \(95\).png)
