@@ -90,7 +90,7 @@ Scenario ID: `6966106`
 
 The Gmail trigger is configured with the query `in:inbox -from:me`, full message format, a limit of 10, and `markSeen=false`. Its polling interval is 15 minutes. The user selected and saved the trigger start point as **From now on** in the Make editor; the trigger cursor is not independently visible in the configuration readback available to this documentation process.
 
-**Known mapping defect:** The AddRecord module currently maps `description` from `{{1.text}}`. The Gmail trigger bundle exposes `fullTextBody` rather than `text`; the successful new-ticket execution showed the mapped `description` value as `null`. Correct this mapping to `{{1.fullTextBody}}` and rerun a fresh-email create test before considering intake validation complete.
+**Known mapping defect:** The AddRecord module currently maps `description` from `{{1.text}}`. The Gmail trigger bundle exposes `fullTextBody` rather than `text`. This was corrected to `{{1.fullTextBody}}` and verified by a fresh-email create test that persisted the full message body.
 
 ## 5. SLA policy and deadline calculation
 
@@ -163,10 +163,14 @@ Scenario ID: `6975772`
 | 1 | Gmail — Watch sent emails | Poll sent-mail events |
 | 2 | Data Store — Search record | Find the ticket using the Gmail thread identifier |
 | 3 | Data Store — Update record | Record first-response timestamp and calculate whether it met the target |
+| 4 | Basic Router | Route first-response events separately from explicit resolution events |
+| 5 | Data Store — Update record | When `[RESOLVED]` appears in the sent message subject or body, set ticket status to `RESOLVED`, populate `resolved_at`, and calculate resolution SLA result |
 
-The update path is intended to run only when a matching ticket exists and `first_response_at` is empty. It preserves a previously recorded `BREACHED` state; otherwise, it compares the captured sent timestamp with `first_response_due_at` and records `MET` or `BREACHED`.
+The first-response path runs only when a matching ticket exists and `first_response_at` is empty. It preserves a previously recorded `BREACHED` state; otherwise, it compares the captured sent timestamp with `first_response_due_at` and records `MET` or `BREACHED`.
 
-**Verified first-response path:** A real sent reply from the dedicated support mailbox was captured by the Gmail Sent trigger, matched to the ticket using the Gmail thread ID, and written to `first_response_at`. The execution completed all three modules without reported errors. The captured timestamp was `2026-11-10T08:07:13.000Z`; the ticket's P2 first-response deadline was `2026-11-10T16:12:57+05:30`, so the stored result was `MET`. A complete resolution event and transition to `RESOLVED` remain to be implemented and tested.
+The resolution path requires a matching, not-yet-resolved ticket and an explicit `[RESOLVED]` marker in either the sent message subject or body. It sets `ticket_status = RESOLVED`, records `resolved_at`, and evaluates `resolution_sla_status` against `resolution_due_at`. If the same sent message is the first recorded response, it also fills `first_response_at` and calculates the first-response SLA without overwriting an existing `MET` or `BREACHED` state.
+
+**Verified first-response path:** A real sent reply from the dedicated support mailbox was captured by the Gmail Sent trigger, matched to the ticket using the Gmail thread ID, and written to `first_response_at`. The execution completed all three modules without reported errors. The captured timestamp was `2026-11-10T08:07:13.000Z`; the ticket's P2 first-response deadline was `2026-11-10T16:12:57+05:30`, so the stored result was `MET`. **Verified resolution path:** The automatic sent-mail poll `50754c3fae884dc6a0f21865a106c77d` captured a reply in the same Gmail thread. The execution inspector confirmed Gmail trigger (Module 1), Data Store SearchRecord (Module 2), and Data Store UpdateRecord (Module 5) each ran once with zero errors. Data Store readback confirmed `ticket_status = RESOLVED`, `resolved_at = 2026-11-10T14:49:18.000Z`, and `resolution_sla_status = MET`. The scenario was deactivated after the successful test.
 
 ## 8. Idempotency and consistency considerations
 
@@ -187,9 +191,10 @@ Remaining risks:
 
 ### Intake and response lifecycle
 
-- New-ticket intake completed a successful five-operation run: Gmail trigger, Gemini classification, JSON parsing, Data Store search, and AddRecord. The new-ticket branch was reached and created the ticket record. Inspection of the AddRecord input exposed a field-mapping defect: `description` was `null` because the mapper uses `{{1.text}}`, while the Gmail trigger bundle exposes `fullTextBody`. Correct the mapping to `{{1.fullTextBody}}` and retest before treating this path as complete.
+- New-ticket intake initially exposed a description mapping defect (`{{1.text}}` was null). The mapping was corrected to `{{1.fullTextBody}}`; a fresh controlled email test then confirmed the full message body was saved in the new Data Store record.
 - Existing-ticket intake completed a successful five-operation run through UpdateRecord. A follow-up in the existing Gmail thread updated ticket ID `TKT-1a1c4314c3ece1e4`; the original creation time and SLA deadlines were preserved.
-- Response & Resolution Lifecycle completed a successful three-operation run: Gmail Sent trigger, Data Store search, and UpdateRecord. The sent reply was matched to the same Gmail thread, `first_response_at` was recorded as `2026-11-10T08:07:13.000Z`, and the first-response status was correctly set to `MET` because the reply arrived before the P2 four-hour deadline.
+- Response & Resolution Lifecycle first-response test completed a successful three-operation run: Gmail Sent trigger, Data Store search, and UpdateRecord. The sent reply was matched to the same Gmail thread, `first_response_at` was recorded as `2026-11-10T08:07:13.000Z`, and the first-response status was correctly set to `MET` because the reply arrived before the P2 four-hour deadline.
+- Resolution lifecycle test completed a separate successful three-operation automatic run. Module 5 updated ticket `TKT-1a1c5c0cf091a53b` to `RESOLVED`, populated `resolved_at = 2026-11-10T14:49:18.000Z`, and set `resolution_sla_status = MET`. The first-response SLA remained `MET`. The execution inspector showed zero errors for all three executed modules.
 
 ### SLA monitor and negative controls
 
@@ -213,7 +218,7 @@ All four temporary synthetic records were deleted after testing. The retained se
 1. Correct the new-ticket description mapping from `{{1.text}}` to `{{1.fullTextBody}}` and rerun the AddRecord path to verify the email body is saved.
 2. Expand intake tests across support categories, priorities, and ambiguous messages.
 3. Retest Gmail polling and sent-mail matching over repeated cycles.
-4. Implement and test the resolution event, including the transition to `ticket_status = RESOLVED` and `resolved_at`.
+4. Expand resolution-marker tests, including marker in subject, marker in body, already-resolved tickets, and repeated sent-mail events.
 5. Add robust event-level idempotency and consider concurrent executions.
 6. Verify Slack delivery and design retry/recovery behaviour around alert and state-update failures.
 7. Add validation and fallback handling for malformed Gemini output and missing fields.
