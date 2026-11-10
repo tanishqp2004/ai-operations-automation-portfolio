@@ -164,7 +164,7 @@ Scenario ID: `6975772`
 
 The update path is intended to run only when a matching ticket exists and `first_response_at` is empty. It preserves a previously recorded `BREACHED` state; otherwise, it compares the captured sent timestamp with `first_response_due_at` and records `MET` or `BREACHED`.
 
-**Important:** The current implementation and test evidence cover the first-response update path only. A complete resolution event and transition to `RESOLVED` still need to be implemented or validated. The scenario has not yet been proven end-to-end against a real sent reply.
+**Verified first-response path:** A real sent reply from the dedicated support mailbox was captured by the Gmail Sent trigger, matched to the ticket using the Gmail thread ID, and written to `first_response_at`. The execution completed all three modules without reported errors. The captured timestamp was `2026-11-10T08:07:13.000Z`; the ticket's P2 first-response deadline was `2026-11-10T16:12:57+05:30`, so the stored result was `MET`. A complete resolution event and transition to `RESOLVED` remain to be implemented and tested.
 
 ## 8. Idempotency and consistency considerations
 
@@ -183,20 +183,32 @@ Remaining risks:
 
 ## 9. Test evidence
 
-The SLA monitor was tested with two temporary synthetic records whose deadlines were set in the past.
+### Intake and response lifecycle
+
+- Incoming Ticket Intake completed a successful five-operation run: Gmail trigger, Gemini classification, JSON parsing, Data Store search, and UpdateRecord. It processed a follow-up in an existing Gmail thread and updated the existing ticket ID `TKT-1a1c4314c3ece1e4`; the original creation time and SLA deadlines were preserved. The new-ticket AddRecord branch has not yet been exercised by a fresh-email test.
+- Response & Resolution Lifecycle completed a successful three-operation run: Gmail Sent trigger, Data Store search, and UpdateRecord. The sent reply was matched to the same Gmail thread, `first_response_at` was recorded as `2026-11-10T08:07:13.000Z`, and the first-response status was correctly set to `MET` because the reply arrived before the P2 four-hour deadline.
+
+### SLA monitor and negative controls
+
+Temporary synthetic records were created with deliberately overdue deadlines.
 
 | Case | Expected | Verified Data Store state |
 |---|---|---|
 | First-response overdue only | First response `BREACHED`; resolution remains `PENDING`; escalation level 1 | Matched |
 | Resolution overdue; first response already `MET` | Resolution `BREACHED`; first response remains `MET`; escalation level 2 | Matched |
+| Both deadlines overdue; ticket paused | Both SLA states remain unchanged | Matched |
+| Both deadlines overdue; ticket already `RESOLVED` | Ticket excluded from monitoring | Matched |
+| Run monitor again after statuses are `BREACHED` | Previously breached states are not processed as pending again | Matched; states unchanged |
 
-Both synthetic records were removed after the test. The seed record `TKT-TEST-0001` was retained and excluded from the monitor. The Make execution completed successfully and the resulting Data Store states were inspected. Slack steps were present in the tested routes, but delivery was not independently checked in Slack message history.
+All four temporary synthetic records were deleted after testing. The retained seed record `TKT-TEST-0001` remains excluded from the monitor.
+
+**Verification limitation:** Both monitor runs returned success and the Data Store state transitions were visible afterward, but the execution inspector exposed only the root SearchRecord module in its module breakdown. Slack notification delivery could not be independently verified through Slack history. Treat the database state-transition tests as verified, but the actual Slack alert delivery as not yet independently verified.
 
 ## 10. Outstanding engineering work
 
-1. Complete a controlled real-email intake test and verify the resulting Data Store record.
-2. Validate that replies in an existing Gmail thread update the same ticket.
-3. Verify the Gmail sent-mail trigger against the intended support mailbox.
+1. Exercise the new-ticket AddRecord path with a fresh email and verify the generated ticket and SLA deadlines.
+2. Expand intake tests across support categories, priorities, and ambiguous messages.
+3. Retest Gmail polling and sent-mail matching over repeated cycles.
 4. Implement and test the resolution event, including the transition to `ticket_status = RESOLVED` and `resolved_at`.
 5. Add robust event-level idempotency and consider concurrent executions.
 6. Verify Slack delivery and design retry/recovery behaviour around alert and state-update failures.
