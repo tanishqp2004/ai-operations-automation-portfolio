@@ -2,7 +2,7 @@
 
 An AI-assisted support operations workflow that classifies incoming support emails, maintains ticket state in an operational database, tracks calendar-hour service-level agreements (SLAs), and escalates overdue incidents.
 
-> **Project status:** Core intake, existing-ticket update, first-response capture, and SLA breach-state logic have passed controlled tests. The SLA monitor has also passed paused/resolved negative-control checks. New-ticket creation through a fresh real email, resolution lifecycle, and independent Slack-delivery verification remain outstanding. All scenarios are kept inactive outside controlled tests; this is a portfolio prototype, not a production service.
+> **Project status:** New-ticket creation, existing-ticket updates, first-response capture, and SLA breach-state logic have all executed successfully in controlled tests. Testing also exposed a new-ticket description mapping issue (`{{1.text}}` resolves to null; Gmail provides `fullTextBody`) that still needs correction. Resolution lifecycle and independent Slack-delivery verification remain outstanding. All scenarios are kept inactive outside controlled tests; this is a portfolio prototype, not a production service.
 
 ## 1. Business problem
 
@@ -39,7 +39,7 @@ flowchart TD
 
 | Scenario | Responsibility | Current state |
 |---|---|---|
-| AI Support Desk & SLA Incident Manager | Watch new support emails, classify them with Gemini, search by ticket ID, then update or create a ticket | Existing-ticket update path tested; new-ticket create path still pending |
+| AI Support Desk & SLA Incident Manager | Watch new support emails, classify them with Gemini, search by ticket ID, then update or create a ticket | Both create and update paths executed; description mapping issue found in create path |
 | AI Support Desk — SLA Monitoring & Escalations | Search unresolved tickets, evaluate first-response and resolution deadlines independently, send escalation alerts, and update ticket state | Breach and negative-control state tests passed; Slack delivery not independently verified |
 | AI Support Desk — Response & Resolution Lifecycle | Observe sent support replies and update the matching ticket's first-response timestamp and SLA result | First-response capture tested against a real sent reply; resolution path pending |
 
@@ -151,7 +151,7 @@ All four temporary SLA test records were deleted after validation. The retained 
 
 ### Still to test
 
-- A fresh email that takes the new-ticket creation path, not just an update to an existing thread.
+- Correct the new-ticket description mapping from `{{1.text}}` to `{{1.fullTextBody}}`, then verify a newly created record contains the email body.
 - Gemini classification accuracy across more support categories and ambiguous messages.
 - Resolution event capture and transition to `ticket_status = RESOLVED` with `resolved_at`.
 - Independent confirmation of Slack alert delivery for each breach route.
@@ -161,7 +161,7 @@ All four temporary SLA test records were deleted after validation. The retained 
 
 ## 10. Known limitations and next improvements
 
-1. **End-to-end validation:** Validate a fresh-email create path and complete the resolution lifecycle.
+1. **Data mapping:** Correct the new-ticket description mapping (`{{1.text}}` currently resolves to null; use the Gmail trigger's `{{1.fullTextBody}}`) and verify it with a fresh email.
 2. **Duplicate protection:** Strengthen event-level idempotency so repeated trigger deliveries cannot create duplicate tickets or repeat side effects.
 3. **Resolution workflow:** Complete and test the resolution event and status transition to `RESOLVED`.
 4. **Human ownership:** Add an explicit assignment/ownership workflow and escalation recipients by priority or team.
