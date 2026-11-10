@@ -199,6 +199,7 @@ Temporary synthetic records were created with deliberately overdue deadlines.
 |---|---|---|
 | First-response overdue only | First response `BREACHED`; resolution remains `PENDING`; escalation level 1 | Matched |
 | Resolution overdue; first response already `MET` | Resolution `BREACHED`; first response remains `MET`; escalation level 2 | Matched |
+| Both deadlines overdue; ticket active and unpaused | Both SLA states become `BREACHED`; escalation level 2 | Matched |
 | Both deadlines overdue; ticket paused | Both SLA states remain unchanged | Matched |
 | Both deadlines overdue; ticket already `RESOLVED` | Ticket excluded from monitoring | Matched |
 | Run monitor again after statuses are `BREACHED` | Previously breached states are not processed as pending again | Matched; states unchanged |
