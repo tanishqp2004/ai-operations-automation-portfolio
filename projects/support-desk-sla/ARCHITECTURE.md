@@ -90,6 +90,8 @@ Scenario ID: `6966106`
 
 The Gmail trigger is configured with the query `in:inbox -from:me`, full message format, a limit of 10, and `markSeen=false`. Its polling interval is 15 minutes. The user selected and saved the trigger start point as **From now on** in the Make editor; the trigger cursor is not independently visible in the configuration readback available to this documentation process.
 
+**Known mapping defect:** The AddRecord module currently maps `description` from `{{1.text}}`. The Gmail trigger bundle exposes `fullTextBody` rather than `text`; the successful new-ticket execution showed the mapped `description` value as `null`. Correct this mapping to `{{1.fullTextBody}}` and rerun a fresh-email create test before considering intake validation complete.
+
 ## 5. SLA policy and deadline calculation
 
 The policy is priority-driven:
@@ -185,7 +187,8 @@ Remaining risks:
 
 ### Intake and response lifecycle
 
-- Incoming Ticket Intake completed a successful five-operation run: Gmail trigger, Gemini classification, JSON parsing, Data Store search, and UpdateRecord. It processed a follow-up in an existing Gmail thread and updated the existing ticket ID `TKT-1a1c4314c3ece1e4`; the original creation time and SLA deadlines were preserved. The new-ticket AddRecord branch has not yet been exercised by a fresh-email test.
+- New-ticket intake completed a successful five-operation run: Gmail trigger, Gemini classification, JSON parsing, Data Store search, and AddRecord. The new-ticket branch was reached and created the ticket record. Inspection of the AddRecord input exposed a field-mapping defect: `description` was `null` because the mapper uses `{{1.text}}`, while the Gmail trigger bundle exposes `fullTextBody`. Correct the mapping to `{{1.fullTextBody}}` and retest before treating this path as complete.
+- Existing-ticket intake completed a successful five-operation run through UpdateRecord. A follow-up in the existing Gmail thread updated ticket ID `TKT-1a1c4314c3ece1e4`; the original creation time and SLA deadlines were preserved.
 - Response & Resolution Lifecycle completed a successful three-operation run: Gmail Sent trigger, Data Store search, and UpdateRecord. The sent reply was matched to the same Gmail thread, `first_response_at` was recorded as `2026-11-10T08:07:13.000Z`, and the first-response status was correctly set to `MET` because the reply arrived before the P2 four-hour deadline.
 
 ### SLA monitor and negative controls
@@ -206,7 +209,7 @@ All four temporary synthetic records were deleted after testing. The retained se
 
 ## 10. Outstanding engineering work
 
-1. Exercise the new-ticket AddRecord path with a fresh email and verify the generated ticket and SLA deadlines.
+1. Correct the new-ticket description mapping from `{{1.text}}` to `{{1.fullTextBody}}` and rerun the AddRecord path to verify the email body is saved.
 2. Expand intake tests across support categories, priorities, and ambiguous messages.
 3. Retest Gmail polling and sent-mail matching over repeated cycles.
 4. Implement and test the resolution event, including the transition to `ticket_status = RESOLVED` and `resolved_at`.
