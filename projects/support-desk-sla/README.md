@@ -2,7 +2,7 @@
 
 An AI-assisted support operations workflow that classifies incoming support emails, maintains ticket state in an operational database, tracks calendar-hour service-level agreements (SLAs), and escalates overdue incidents.
 
-> **Project status:** New-ticket creation, existing-ticket updates, first-response capture, and SLA breach-state logic have all executed successfully in controlled tests. Testing also exposed a new-ticket description mapping issue (`{{1.text}}` resolves to null; Gmail provides `fullTextBody`) that still needs correction. Resolution lifecycle and independent Slack-delivery verification remain outstanding. All scenarios are kept inactive outside controlled tests; this is a portfolio prototype, not a production service.
+> **Project status:** Controlled end-to-end tests have verified ticket creation with the full email description, existing-ticket updates, first-response capture, resolution to `RESOLVED`, and independent first-response/resolution SLA state transitions. Slack delivery remains configured but not independently verified. All three scenarios are inactive outside controlled tests; this is a portfolio prototype, not a production service.
 
 ## 1. Business problem
 
@@ -39,9 +39,9 @@ flowchart TD
 
 | Scenario | Responsibility | Current state |
 |---|---|---|
-| AI Support Desk & SLA Incident Manager | Watch new support emails, classify them with Gemini, search by ticket ID, then update or create a ticket | Both create and update paths executed; description mapping issue found in create path |
+| AI Support Desk & SLA Incident Manager | Watch new support emails, classify them with Gemini, search by ticket ID, then update or create a ticket | Create and update paths tested; `fullTextBody` description mapping verified |
 | AI Support Desk — SLA Monitoring & Escalations | Search unresolved tickets, evaluate first-response and resolution deadlines independently, send escalation alerts, and update ticket state | Breach and negative-control state tests passed; Slack delivery not independently verified |
-| AI Support Desk — Response & Resolution Lifecycle | Observe sent support replies and update the matching ticket's first-response timestamp and SLA result | First-response capture tested against a real sent reply; resolution path pending |
+| AI Support Desk — Response & Resolution Lifecycle | Observe sent support replies and update the matching ticket's first-response timestamp and SLA result | First response and explicit `[RESOLVED]` closure both tested against real sent-mail events |
 
 ## 4. Ticket lifecycle
 
@@ -52,7 +52,7 @@ flowchart TD
 5. If a matching ticket exists, it updates the existing record without resetting the original SLA clock. Otherwise, it creates a new ticket and calculates its deadlines.
 6. The SLA monitor periodically checks unresolved tickets.
 7. When a deadline is breached, the relevant escalation path sends an internal alert and updates the ticket's SLA status and escalation metadata.
-8. The response/resolution lifecycle scenario records the first human response; resolution event handling remains to be completed. Customer replies are not sent automatically by this prototype.
+8. The response/resolution lifecycle scenario records the first human response and, when a sent message contains `[RESOLVED]` in its subject or body, records the resolution timestamp and final SLA result. Customer replies are not sent automatically by this prototype.
 
 ## 5. SLA policy
 
@@ -131,7 +131,19 @@ Two Make executions completed successfully against the dedicated test mailbox:
 | Incoming Ticket Intake | Gmail trigger → Gemini → JSON parse → Data Store search → UpdateRecord; 5 operations, no module errors | A follow-up email in an existing Gmail thread was classified and updated the matching ticket rather than creating another record. The original ticket ID and SLA deadlines were preserved. |
 | Response & Resolution Lifecycle | Gmail Sent trigger → Data Store search → UpdateRecord; 3 operations, no module errors | A sent support reply from the dedicated support mailbox was matched to the same Gmail thread. `first_response_at` was recorded as `2026-11-10T08:07:13.000Z`, and the first-response SLA was marked `MET`. |
 
-The P2 ticket was created at `2026-11-10T12:12:57+05:30`, giving a first-response deadline of `16:12:57+05:30`. The captured reply time was `13:37:13+05:30`, within the four-hour target. The existing ticket ID remained `TKT-1a1c4314c3ece1e4`.
+The P2 first-response test ticket was created at `2026-11-10T12:12:57+05:30`, giving a first-response deadline of `16:12:57+05:30`. The captured reply time was `13:37:13+05:30`, within the four-hour target. A separate P3 resolution test used ticket `TKT-1a1c5c0cf091a53b`.
+
+### Verified resolution lifecycle test
+
+A follow-up reply was sent in the same Gmail thread with `[RESOLVED]` in the quoted message body. The automatic Gmail Sent polling execution `50754c3fae884dc6a0f21865a106c77d` completed successfully with three operations and zero module errors:
+
+| Module | Verified result |
+|---|---|
+| Gmail Watch Sent Emails (1) | Captured the sent reply and original Gmail thread ID |
+| Data Store SearchRecord (2) | Found ticket `TKT-1a1c5c0cf091a53b` |
+| Data Store UpdateRecord (5) | Updated the existing ticket to `RESOLVED` and populated `resolved_at` |
+
+The Data Store readback confirmed `ticket_status = RESOLVED`, `resolved_at = 2026-11-10T14:49:18.000Z`, `first_response_sla_status = MET`, and `resolution_sla_status = MET`. The execution inspector confirmed Module 5 ran once without errors. Scenario 3 was then deactivated and its inactive status was verified.
 
 ### Verified SLA monitor tests
 
@@ -152,9 +164,7 @@ All four temporary SLA test records were deleted after validation. The retained 
 
 ### Still to test
 
-- Correct the new-ticket description mapping from `{{1.text}}` to `{{1.fullTextBody}}`, then verify a newly created record contains the email body.
 - Gemini classification accuracy across more support categories and ambiguous messages.
-- Resolution event capture and transition to `ticket_status = RESOLVED` with `resolved_at`.
 - Independent confirmation of Slack alert delivery for each breach route.
 - Event-level duplicate handling, concurrency, and recovery if an alert succeeds but the subsequent database update fails.
 - Timezone and deadline-boundary edge cases.
@@ -162,13 +172,12 @@ All four temporary SLA test records were deleted after validation. The retained 
 
 ## 10. Known limitations and next improvements
 
-1. **Data mapping:** Correct the new-ticket description mapping (`{{1.text}}` currently resolves to null; use the Gmail trigger's `{{1.fullTextBody}}`) and verify it with a fresh email.
-2. **Duplicate protection:** Strengthen event-level idempotency so repeated trigger deliveries cannot create duplicate tickets or repeat side effects.
-3. **Resolution workflow:** Complete and test the resolution event and status transition to `RESOLVED`.
-4. **Human ownership:** Add an explicit assignment/ownership workflow and escalation recipients by priority or team.
-5. **Operational reporting:** Add a Google Sheets reporting layer for open tickets, SLA compliance, breach counts, and ageing. The Data Store remains the source of truth.
-6. **Error handling:** Add deliberate handling for malformed AI responses, missing customer data, and failed downstream operations.
-7. **Production readiness:** Add access controls, retention rules, monitoring, recovery procedures, and broader load testing before any real customer deployment.
+1. **Duplicate protection:** Strengthen event-level idempotency so repeated trigger deliveries cannot create duplicate tickets or repeat side effects.
+2. **Slack verification:** Independently confirm delivery for both breach routes and add recovery handling around alert/state-update failures.
+3. **Human ownership:** Add an explicit assignment/ownership workflow and escalation recipients by priority or team.
+4. **Operational reporting:** Add a Google Sheets reporting layer for open tickets, SLA compliance, breach counts, and ageing. The Data Store remains the source of truth.
+5. **Error handling:** Add deliberate handling for malformed AI responses, missing customer data, and failed downstream operations.
+6. **Production readiness:** Add access controls, retention rules, monitoring, recovery procedures, and broader load testing before any real customer deployment.
 
 ## 11. Safety and operating boundaries
 
