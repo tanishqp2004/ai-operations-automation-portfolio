@@ -141,6 +141,7 @@ Temporary synthetic records were created with deliberately overdue deadlines:
 |---|---|---|
 | First-response deadline overdue; resolution deadline in the future | First-response `BREACHED`; resolution remains `PENDING`; escalation level 1 | Confirmed in Data Store |
 | Resolution deadline overdue; first response already `MET` | Resolution `BREACHED`; first response remains `MET`; escalation level 2 | Confirmed in Data Store |
+| Both deadlines overdue; ticket active and unpaused | Both statuses become `BREACHED`; escalation level 2 | Confirmed |
 | Both deadlines overdue but ticket paused | Both statuses remain unchanged | Confirmed |
 | Both deadlines overdue but ticket status is `RESOLVED` | Ticket is excluded from monitoring | Confirmed |
 | Run monitor again after breach states have been recorded | Previously breached states are not reprocessed as pending | Confirmed; state unchanged |
