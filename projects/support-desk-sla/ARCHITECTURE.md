@@ -173,7 +173,7 @@ The resolution path requires a matching, not-yet-resolved ticket and an explicit
 
 **Verified first-response path:** A real sent reply from the dedicated support mailbox was captured by the Gmail Sent trigger, matched to the ticket using the Gmail thread ID, and written to `first_response_at`. The execution completed all three modules without reported errors. The captured timestamp was `2026-11-10T08:07:13.000Z`; the ticket's P2 first-response deadline was `2026-11-10T16:12:57+05:30`, so the stored result was `MET`. **Verified resolution path:** The automatic sent-mail poll `50754c3fae884dc6a0f21865a106c77d` captured a reply in the same Gmail thread. The execution inspector confirmed Gmail trigger (Module 1), Data Store SearchRecord (Module 2), and Data Store UpdateRecord (Module 5) each ran once with zero errors. Data Store readback confirmed `ticket_status = RESOLVED`, `resolved_at = 2026-11-10T14:49:18.000Z`, and `resolution_sla_status = MET`. The scenario was deactivated after the successful test.
 
-## 9. Google Sheets reporting layer
+## 8. Google Sheets reporting layer
 
 **Reporting workbook:** `AI Support Desk — SLA Operations Dashboard`  
 **Workbook ID:** `1gLyLg1U3uJmrbMiwD4ckrfOGXD9R_kqMYyQgak8soc4`  
@@ -221,7 +221,7 @@ Temporary synthetic records were created with deliberately overdue deadlines.
 | Both deadlines overdue; ticket already `RESOLVED` | Ticket excluded from monitoring | Matched |
 | Run monitor again after statuses are `BREACHED` | Previously breached states are not processed as pending again | Matched; states unchanged |
 
-All four temporary synthetic records were deleted after testing. The retained seed record `TKT-TEST-0001` remains excluded from the monitor.
+All four earlier synthetic monitor records were deleted after testing. In a later 12-record batch test, one active overdue P1 correctly changed to first-response `BREACHED` with escalation level 1; a paused overdue ticket and a resolved overdue ticket were excluded; nine future-deadline tickets stayed pending. A repeat run did not reprocess the breached ticket. All 12 batch records were deleted, and a Data Store readback confirmed no `TKT-STRESS-*` records remained. The retained seed record `TKT-TEST-0001` remains excluded from the monitor.
 
 **Verification limitation:** Monitor runs returned success and the Data Store state transitions were visible afterward, but the execution inspector exposed only the root SearchRecord module in its module breakdown. Slack notification delivery could not be independently verified through Slack history. Treat the database state-transition tests as verified, but actual Slack delivery as not yet independently verified. A separate external-sender new-thread intake test remains pending.
 
