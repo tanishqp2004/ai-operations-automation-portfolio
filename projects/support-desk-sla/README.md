@@ -2,7 +2,7 @@
 
 An AI-assisted support operations workflow that classifies incoming support emails, maintains ticket state in an operational database, tracks calendar-hour service-level agreements (SLAs), and escalates overdue incidents.
 
-> **Project status:** Controlled end-to-end tests have verified ticket creation with the full email description, existing-ticket updates, first-response capture, resolution to `RESOLVED`, and independent first-response/resolution SLA state transitions. Slack delivery remains configured but not independently verified. All three scenarios are inactive outside controlled tests; this is a portfolio prototype, not a production service.
+> **Project status:** Controlled tests have verified new-ticket creation and existing-ticket updates, first-response and resolution lifecycle events, SLA state transitions, paused/resolved exclusions, and repeat-run protection. A 12-record synthetic batch test passed for the SLA monitor. The Google Sheets reporting dashboard was reconciled against the two retained tickets after the test. Slack delivery remains configured but not independently verified. All four scenarios are inactive outside controlled tests; this remains a portfolio prototype, not a production service.
 
 ## 1. Business problem
 
@@ -32,7 +32,7 @@ flowchart TD
     J -->|Resolution| L[Escalation alert + state update]
     H --> M[Response & Resolution Lifecycle]
     M --> N[Record first response / resolution events]
-    H --> O[Google Sheets reporting - planned]
+    H --> O[Google Sheets reporting dashboard]
 ```
 
 ## 3. Scenario responsibilities
@@ -160,7 +160,11 @@ Temporary synthetic records were created with deliberately overdue deadlines:
 
 All four temporary SLA test records were deleted after validation. The retained seed record `TKT-TEST-0001` remains excluded from monitoring.
 
-**Verification limitation:** Make's execution inspector reported successful monitor runs but exposed only the root SearchRecord module in its module breakdown, despite the expected Data Store state transitions being visible afterward. Slack message delivery could not be independently confirmed through Slack message history. The alert path should therefore be treated as configured but not fully verified.
+**Expanded batch test (12 synthetic tickets):** A controlled batch included one active overdue P1, one paused overdue ticket, one already-resolved overdue ticket, and nine tickets with future deadlines. The active P1 first-response state changed to `BREACHED` with escalation level 1; paused and resolved tickets were excluded; future-deadline tickets remained pending. A repeat monitor run left the already-breached state unchanged. All 12 synthetic records were deleted afterward. The Data Store was read back to confirm no `TKT-STRESS-*` records remained.
+
+**Reporting validation:** The reporting refresh wrote the retained Data Store tickets to the `Ticket Register`; the dashboard was read back and reconciled to 2 total tickets, 1 open, 1 resolved, 0 first-response breaches, 1 resolution breach, and 0.84 average resolution hours. A concurrent refresh overlap was observed during testing; sequential execution was enabled to prevent overlapping runs. The refresh scenario was then left inactive.
+
+**Verification limitation:** Make's execution inspector reported successful monitor runs but exposed only the root SearchRecord module in its module breakdown, despite the expected Data Store state transitions being visible afterward. Slack message delivery could not be independently confirmed through Slack message history. The alert path should therefore be treated as configured but not fully verified. A separate external-sender new-thread intake test is still pending.
 
 ### Still to test
 
@@ -175,13 +179,13 @@ All four temporary SLA test records were deleted after validation. The retained 
 1. **Duplicate protection:** Strengthen event-level idempotency so repeated trigger deliveries cannot create duplicate tickets or repeat side effects.
 2. **Slack verification:** Independently confirm delivery for both breach routes and add recovery handling around alert/state-update failures.
 3. **Human ownership:** Add an explicit assignment/ownership workflow and escalation recipients by priority or team.
-4. **Operational reporting:** Add a Google Sheets reporting layer for open tickets, SLA compliance, breach counts, and ageing. The Data Store remains the source of truth.
+4. **Operational reporting:** The Google Sheets reporting layer is implemented for open tickets, SLA compliance, breach counts, ageing, and resolution time. The Data Store remains the source of truth.
 5. **Error handling:** Add deliberate handling for malformed AI responses, missing customer data, and failed downstream operations.
-6. **Production readiness:** Add access controls, retention rules, monitoring, recovery procedures, and broader load testing before any real customer deployment.
+6. **Production readiness:** Complete an external-sender new-thread intake test, independently verify Slack delivery, add access controls and retention rules, and test failure recovery and higher throughput before any real customer deployment.
 
 ## 11. Safety and operating boundaries
 
-- Scenarios are kept inactive except during controlled tests.
+- All four scenarios are kept inactive except during controlled tests.
 - The prototype does not automatically send customer-facing replies.
 - Escalation messages are internal notifications.
 - Google Sheets is intended for reporting, not as the authoritative ticket database.
