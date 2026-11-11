@@ -4,15 +4,16 @@ This document records the implementation-level design of the portfolio prototype
 
 ## 1. System boundaries
 
-The solution is split into three Make.com scenarios so that email intake, deadline enforcement, and response lifecycle updates can be tested and operated separately.
+The solution is split into four Make.com scenarios so that email intake, deadline enforcement, response lifecycle updates, and reporting refresh can be tested and operated separately.
 
 | Scenario | Make scenario ID | Trigger / cadence | Purpose |
 |---|---:|---|---|
 | Incoming Ticket Intake | `6966106` | Gmail polling, 15 minutes | Convert incoming email events into ticket records |
 | SLA Monitoring & Escalations | `6975614` | Scheduled, every 15 minutes | Detect overdue SLA commitments and update escalation state |
 | Response & Resolution Lifecycle | `6975772` | Gmail sent-mail polling, 15 minutes | Capture response events and update the matching ticket |
+| Google Sheets Reporting Refresh | `6979683` | Scheduled, every 15 minutes when enabled | Refresh the reporting register and dashboard from the operational Data Store |
 
-All three scenarios are currently inactive outside controlled tests.
+All four scenarios are currently inactive outside controlled tests.
 
 ## 2. Data store design
 
@@ -22,7 +23,7 @@ All three scenarios are currently inactive outside controlled tests.
 **Structure ID:** `573737`  
 **Strict validation:** enabled
 
-The Data Store is the operational source of truth. Google Sheets is reserved for a future reporting/audit view.
+The Data Store is the operational source of truth. Google Sheets provides a reporting/audit view and is not authoritative for ticket state.
 
 ### Field catalogue
 
@@ -90,7 +91,7 @@ Scenario ID: `6966106`
 
 The Gmail trigger is configured with the query `in:inbox -from:me`, full message format, a limit of 10, and `markSeen=false`. Its polling interval is 15 minutes. The user selected and saved the trigger start point as **From now on** in the Make editor; the trigger cursor is not independently visible in the configuration readback available to this documentation process.
 
-**Known mapping defect:** The AddRecord module currently maps `description` from `{{1.text}}`. The Gmail trigger bundle exposes `fullTextBody` rather than `text`. This was corrected to `{{1.fullTextBody}}` and verified by a fresh-email create test that persisted the full message body.
+**Description mapping:** The AddRecord module maps `description` from `{{1.fullTextBody}}`. A controlled fresh-email create test confirmed that the full message body was persisted in the Data Store.
 
 ## 5. SLA policy and deadline calculation
 
@@ -172,6 +173,17 @@ The resolution path requires a matching, not-yet-resolved ticket and an explicit
 
 **Verified first-response path:** A real sent reply from the dedicated support mailbox was captured by the Gmail Sent trigger, matched to the ticket using the Gmail thread ID, and written to `first_response_at`. The execution completed all three modules without reported errors. The captured timestamp was `2026-11-10T08:07:13.000Z`; the ticket's P2 first-response deadline was `2026-11-10T16:12:57+05:30`, so the stored result was `MET`. **Verified resolution path:** The automatic sent-mail poll `50754c3fae884dc6a0f21865a106c77d` captured a reply in the same Gmail thread. The execution inspector confirmed Gmail trigger (Module 1), Data Store SearchRecord (Module 2), and Data Store UpdateRecord (Module 5) each ran once with zero errors. Data Store readback confirmed `ticket_status = RESOLVED`, `resolved_at = 2026-11-10T14:49:18.000Z`, and `resolution_sla_status = MET`. The scenario was deactivated after the successful test.
 
+## 9. Google Sheets reporting layer
+
+**Reporting workbook:** `AI Support Desk — SLA Operations Dashboard`  
+**Workbook ID:** `1gLyLg1U3uJmrbMiwD4ckrfOGXD9R_kqMYyQgak8soc4`  
+**Sheets:** `Dashboard`, `Ticket Register`  
+**Refresh scenario:** `6979683`
+
+The refresh clears the register's data rows, searches the operational Data Store while excluding the seed record `TKT-TEST-0001`, and writes ticket rows with calculated ageing and resolution time. Dashboard formulas summarize ticket volume, open/resolved counts, priority distribution, breach counts, compliance, pending SLAs, and open-ticket ageing. Formulas use whole-column ranges so that the dashboard remains valid as register rows grow. The refresh scenario has sequential execution enabled to prevent overlapping refresh runs.
+
+A controlled refresh and readback reconciled the register to the two retained tickets: one open P2 with a breached resolution SLA, and one resolved P3 with both SLA results met. Dashboard readback matched 2 total tickets, 1 open, 1 resolved, 0 first-response breaches, 1 resolution breach, and 0.84 average resolution hours. This was a two-ticket snapshot validation, not a high-volume reporting benchmark.
+
 ## 9. Idempotency and consistency considerations
 
 Current design protections:
@@ -211,23 +223,22 @@ Temporary synthetic records were created with deliberately overdue deadlines.
 
 All four temporary synthetic records were deleted after testing. The retained seed record `TKT-TEST-0001` remains excluded from the monitor.
 
-**Verification limitation:** Both monitor runs returned success and the Data Store state transitions were visible afterward, but the execution inspector exposed only the root SearchRecord module in its module breakdown. Slack notification delivery could not be independently verified through Slack history. Treat the database state-transition tests as verified, but the actual Slack alert delivery as not yet independently verified.
+**Verification limitation:** Monitor runs returned success and the Data Store state transitions were visible afterward, but the execution inspector exposed only the root SearchRecord module in its module breakdown. Slack notification delivery could not be independently verified through Slack history. Treat the database state-transition tests as verified, but actual Slack delivery as not yet independently verified. A separate external-sender new-thread intake test remains pending.
 
 ## 11. Outstanding engineering work
 
-1. Correct the new-ticket description mapping from `{{1.text}}` to `{{1.fullTextBody}}` and rerun the AddRecord path to verify the email body is saved.
+1. Run an external-sender new-thread intake test through the dedicated support inbox and verify the ticket ID, full description, AI fields, and calculated deadlines.
 2. Expand intake tests across support categories, priorities, and ambiguous messages.
 3. Retest Gmail polling and sent-mail matching over repeated cycles.
 4. Expand resolution-marker tests, including marker in subject, marker in body, already-resolved tickets, and repeated sent-mail events.
-5. Add robust event-level idempotency and consider concurrent executions.
+5. Add robust event-level idempotency and consider concurrent intake executions.
 6. Verify Slack delivery and design retry/recovery behaviour around alert and state-update failures.
 7. Add validation and fallback handling for malformed Gemini output and missing fields.
-8. Add a reporting view without moving operational ownership out of the Data Store.
-9. Run broader timezone, boundary-time, paused-ticket, and failure-path tests before considering production use.
+8. Run broader timezone, boundary-time, and failure-path tests before considering production use.
 
 ## 12. Security and operational guardrails
 
-- Keep scenarios inactive outside controlled testing until all critical paths are validated.
+- Keep all four scenarios inactive outside controlled testing until all critical paths are validated.
 - Do not send customer-facing responses automatically; retain human review and approval.
 - Keep internal escalation notifications separate from customer communication.
 - Do not put credentials, API keys, access tokens, or real customer data in repository documentation or screenshots.
