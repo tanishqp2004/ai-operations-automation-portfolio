@@ -172,7 +172,7 @@ The resolution path requires a matching, not-yet-resolved ticket and an explicit
 
 **Verified first-response path:** A real sent reply from the dedicated support mailbox was captured by the Gmail Sent trigger, matched to the ticket using the Gmail thread ID, and written to `first_response_at`. The execution completed all three modules without reported errors. The captured timestamp was `2026-11-10T08:07:13.000Z`; the ticket's P2 first-response deadline was `2026-11-10T16:12:57+05:30`, so the stored result was `MET`. **Verified resolution path:** The automatic sent-mail poll `50754c3fae884dc6a0f21865a106c77d` captured a reply in the same Gmail thread. The execution inspector confirmed Gmail trigger (Module 1), Data Store SearchRecord (Module 2), and Data Store UpdateRecord (Module 5) each ran once with zero errors. Data Store readback confirmed `ticket_status = RESOLVED`, `resolved_at = 2026-11-10T14:49:18.000Z`, and `resolution_sla_status = MET`. The scenario was deactivated after the successful test.
 
-## 8. Idempotency and consistency considerations
+## 9. Idempotency and consistency considerations
 
 Current design protections:
 - Search by Gmail thread-derived ticket ID before creating a new ticket.
@@ -187,7 +187,7 @@ Remaining risks:
 - A failure after an alert is sent but before the Data Store update could cause a repeated alert on a later run. The alert/update sequence and recovery behaviour need further hardening.
 - Repeated sent-mail events and thread matching need real-account tests.
 
-## 9. Test evidence
+## 10. Test evidence
 
 ### Intake and response lifecycle
 
@@ -213,7 +213,7 @@ All four temporary synthetic records were deleted after testing. The retained se
 
 **Verification limitation:** Both monitor runs returned success and the Data Store state transitions were visible afterward, but the execution inspector exposed only the root SearchRecord module in its module breakdown. Slack notification delivery could not be independently verified through Slack history. Treat the database state-transition tests as verified, but the actual Slack alert delivery as not yet independently verified.
 
-## 10. Outstanding engineering work
+## 11. Outstanding engineering work
 
 1. Correct the new-ticket description mapping from `{{1.text}}` to `{{1.fullTextBody}}` and rerun the AddRecord path to verify the email body is saved.
 2. Expand intake tests across support categories, priorities, and ambiguous messages.
@@ -225,7 +225,7 @@ All four temporary synthetic records were deleted after testing. The retained se
 8. Add a reporting view without moving operational ownership out of the Data Store.
 9. Run broader timezone, boundary-time, paused-ticket, and failure-path tests before considering production use.
 
-## 11. Security and operational guardrails
+## 12. Security and operational guardrails
 
 - Keep scenarios inactive outside controlled testing until all critical paths are validated.
 - Do not send customer-facing responses automatically; retain human review and approval.
