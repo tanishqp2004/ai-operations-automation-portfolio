@@ -2,7 +2,7 @@
 
 An AI-assisted support operations workflow that classifies incoming support emails, maintains ticket state in an operational database, tracks calendar-hour service-level agreements (SLAs), and escalates overdue incidents.
 
-> **Project status:** Controlled tests have verified new-ticket creation and existing-ticket updates, first-response and resolution lifecycle events, SLA state transitions, paused/resolved exclusions, and repeat-run protection. A 12-record synthetic batch test passed for the SLA monitor. The Google Sheets reporting dashboard was reconciled against the two retained tickets after the test. Slack delivery remains configured but not independently verified. All four scenarios are inactive outside controlled tests; this remains a portfolio prototype, not a production service.
+> **Project status:** Controlled tests have verified new-ticket creation and existing-ticket updates, first-response and resolution lifecycle events, SLA state transitions, paused/resolved exclusions, and repeat-run protection. The SLA monitor passed focused negative-control and 12-record synthetic batch tests. A read-only deadline audit of 10 retained non-seed tickets confirmed all P1–P4 calendar-hour targets, including midnight and multi-day rollovers. The exact-deadline comparison was checked against the configured `due_at <= now` filter (configuration-level validation, not a fresh live run). Slack delivery remains configured but not independently verified. All four scenarios are inactive outside controlled tests; this remains a portfolio prototype, not a production service.
 
 ## 1. Business problem
 
@@ -162,6 +162,8 @@ All four temporary SLA test records were deleted after validation. The retained 
 
 **Expanded batch test (12 synthetic tickets):** A controlled batch included one active overdue P1, one paused overdue ticket, one already-resolved overdue ticket, and nine tickets with future deadlines. The active P1 first-response state changed to `BREACHED` with escalation level 1; paused and resolved tickets were excluded; future-deadline tickets remained pending. A repeat monitor run left the already-breached state unchanged. All 12 synthetic records were deleted afterward. The Data Store was read back to confirm no `TKT-STRESS-*` records remained.
 
+**Focused SLA deadline edge-case audit (read-only):** The 10 currently retained non-seed Data Store records were checked against the priority policy. All 10 passed: stored target-hour fields matched the policy, and the actual `created_at` → `first_response_due_at` and `created_at` → `resolution_due_at` differences were exactly P1 1h/4h, P2 4h/12h, P3 8h/24h, and P4 24h/72h. The records include deadlines rolling across midnight and P4 deadlines spanning multiple calendar days. Every checked timestamp retained the `+05:30` India offset, and each first-response deadline preceded its resolution deadline. The monitor's configured `parseDate(due_at) <= now` comparison was boundary-checked: one millisecond before is not overdue; at the deadline and after it is overdue. This last check validates the configured comparator rather than a fresh scenario execution. The audit was read-only: no ticket records were changed and no Slack alerts were triggered.
+
 **Reporting validation:** The reporting refresh wrote the retained Data Store tickets to the `Ticket Register`; the dashboard was read back and reconciled to 2 total tickets, 1 open, 1 resolved, 0 first-response breaches, 1 resolution breach, and 0.84 average resolution hours. A concurrent refresh overlap was observed during testing; sequential execution was enabled to prevent overlapping runs. The refresh scenario was then left inactive.
 
 **Verification limitation:** Make's execution inspector reported successful monitor runs but exposed only the root SearchRecord module in its module breakdown, despite the expected Data Store state transitions being visible afterward. Slack message delivery could not be independently confirmed through Slack message history. The alert path should therefore be treated as configured but not fully verified. A separate external-sender new-thread intake test is still pending.
@@ -171,7 +173,7 @@ All four temporary SLA test records were deleted after validation. The retained 
 - Gemini classification accuracy across more support categories and ambiguous messages.
 - Independent confirmation of Slack alert delivery for each breach route.
 - Event-level duplicate handling, concurrency, and recovery if an alert succeeds but the subsequent database update fails.
-- Timezone and deadline-boundary edge cases.
+- Isolated live execution at the exact deadline boundary once a separate staging database is available; the current comparison has been checked at configuration level.
 - Error handling for malformed AI output, missing fields, and temporary app failures.
 
 ## 10. Known limitations and next improvements
