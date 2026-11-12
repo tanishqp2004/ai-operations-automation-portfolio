@@ -223,6 +223,12 @@ Temporary synthetic records were created with deliberately overdue deadlines.
 
 All four earlier synthetic monitor records were deleted after testing. In a later 12-record batch test, one active overdue P1 correctly changed to first-response `BREACHED` with escalation level 1; a paused overdue ticket and a resolved overdue ticket were excluded; nine future-deadline tickets stayed pending. A repeat run did not reprocess the breached ticket. All 12 batch records were deleted, and a Data Store readback confirmed no `TKT-STRESS-*` records remained. The retained seed record `TKT-TEST-0001` remains excluded from the monitor.
 
+### Focused SLA deadline calculation edge cases
+
+A read-only audit checked the 10 currently retained non-seed Data Store records against the calendar-hour SLA policy. All 10 passed: the stored target-hour fields and actual timestamp differences matched P1 (1h first response / 4h resolution), P2 (4h / 12h), P3 (8h / 24h), and P4 (24h / 72h). The sample includes midnight rollovers and P4 deadlines spanning multiple days. Timestamps retained the `+05:30` India offset, and first-response deadlines always preceded resolution deadlines.
+
+The monitor's configured `parseDate(due_at) <= now` comparison was checked at the boundary: one millisecond before the deadline is not overdue; exactly at the deadline and after it is overdue. This is a configuration-level boundary check, not a fresh live scenario execution. The audit did not mutate operational records or trigger Slack notifications.
+
 **Verification limitation:** Monitor runs returned success and the Data Store state transitions were visible afterward, but the execution inspector exposed only the root SearchRecord module in its module breakdown. Slack notification delivery could not be independently verified through Slack history. Treat the database state-transition tests as verified, but actual Slack delivery as not yet independently verified. A separate external-sender new-thread intake test remains pending.
 
 ## 11. Outstanding engineering work
@@ -234,7 +240,7 @@ All four earlier synthetic monitor records were deleted after testing. In a late
 5. Add robust event-level idempotency and consider concurrent intake executions.
 6. Verify Slack delivery and design retry/recovery behaviour around alert and state-update failures.
 7. Add validation and fallback handling for malformed Gemini output and missing fields.
-8. Run broader timezone, boundary-time, and failure-path tests before considering production use.
+8. Run isolated live exact-deadline and broader failure-path tests before considering production use; current IST calendar-hour calculations across midnight and multi-day deadlines have passed a read-only audit, while the millisecond boundary was checked against the configured comparator.
 
 ## 12. Security and operational guardrails
 
