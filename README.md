@@ -35,6 +35,24 @@ An AI-powered lead management workflow that classifies incoming enquiries, ident
 
 **Status:** Built; testing and refinement in progress.
 
+### 3. AI Voice Receptionist & Business Booking Agent
+
+A conversational receptionist prototype for a fictional dental clinic. Vapi handles the voice interaction, while secured Supabase Edge Functions and Postgres booking functions check live availability and create appointments. A Make webhook exposes the same booking API for workflow integrations.
+
+**Tools:** Vapi, Google Gemini, Deepgram Nova-3, Supabase, PostgreSQL, Edge Functions, Make.com
+
+**Key features:**
+- Live appointment availability checks using service duration and business hours
+- Booking engine with customer upsert and appointment lifecycle operations
+- Database-level prevention of overlapping active appointments
+- Separate API-key authentication for the Vapi adapter and booking API
+- Server-side service-role access; no public table policies or client-side secret exposure
+- Make webhook orchestration with JSON response handling
+
+**Status:** Database, booking engine, Edge Functions, Make scenario, and Vapi availability/booking tools are configured. Live voice availability has been verified. A disposable database transaction tested availability → booking → cancellation and was rolled back. Full voice booking confirmation, cancellation/rescheduling tools, notifications, and browser-demo packaging remain in progress. Fictional demo only; not production-ready.
+
+**Documentation:** [Project README](projects/ai-voice-receptionist/README.md) · [Technical architecture](projects/ai-voice-receptionist/ARCHITECTURE.md)
+
 ## Technical Skills
 
 - **Automation:** Make.com, workflow design, routers, webhooks
