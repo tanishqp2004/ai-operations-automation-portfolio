@@ -1,8 +1,8 @@
 # AI Voice Receptionist & Business Booking Agent
 
-An AI-powered receptionist prototype for a fictional dental clinic. It answers spoken enquiries, checks live appointment availability, collects booking details, and creates, cancels or reschedules appointments through a secured backend.
+An AI receptionist platform being evolved into a multi-tenant SaaS for dental clinics. The original single-clinic voice demo remains intact while a separate, zero-cost-quoted Supabase staging project now holds the SaaS database foundation.
 
-> **Project status (19 November 2026):** Core voice booking and management tools are implemented and tested. The database booking engine, Vapi adapter, booking API, Make booking webhook, and a separate automated staff-email dispatcher are active. A corrected staff-inbox test email was confirmed received. Appointment-event notification triggers and the cron dispatcher have been verified. Final regression testing, operational escalation, and browser-demo packaging remain. This is a portfolio prototype, not a production clinic system.
+> **Project status (19 November 2026):** The legacy single-clinic voice demo remains operational and separate. SaaS staging has been created in Supabase at a quoted $0/month. Its foundation includes 10 tenant-scoped tables, RLS on all 10, 26 role-aware policies, owner/admin/staff memberships, protected business onboarding, and four SECURITY INVOKER booking RPCs. Security advisor returned no findings. Authenticated signup/onboarding, cross-tenant attack tests, dashboard, tenant-aware Vapi/Make provisioning, notification migration and full regression remain. This is an early SaaS foundation, not a production-ready product.
 
 ## 1. Business problem
 
@@ -10,7 +10,7 @@ Small service businesses often handle appointment enquiries and bookings manuall
 
 ## 2. Solution overview
 
-The voice assistant speaks with callers and invokes narrowly scoped tools. A Supabase Edge Function validates each request, then calls database booking functions using a server-side service-role credential. A separate Make webhook provides an integration/orchestration path to the same booking API.
+The legacy voice assistant speaks with callers and invokes narrowly scoped tools. Its Edge Functions and Make scenarios remain connected to the original demo project. SaaS staging is deliberately separate; do not point existing Vapi or Make integrations at it until tenant identity, authorization and per-clinic routing have been redesigned.
 
 ### Architecture
 
@@ -59,7 +59,7 @@ flowchart TD
 
 ## 5. Database model
 
-The demo uses seven tables:
+The legacy demo database uses seven tables:
 
 | Table | Purpose |
 |---|---|
@@ -72,6 +72,10 @@ The demo uses seven tables:
 | `notification_outbox` | Idempotent appointment-event email queue, retry state and provider response |
 
 Appointments use a Postgres exclusion constraint to prevent overlapping active bookings for the same business/resource. Customer and service foreign keys are scoped to the same business. Timestamps are stored as `timestamptz`; the demo business uses `Asia/Kolkata`.
+
+### SaaS staging schema
+
+A separate Supabase project, `Project-04-SaaS-Staging-Mumbai` (Mumbai region), contains 10 empty application tables: `businesses`, `business_memberships`, `services`, `business_hours`, `customers`, `appointments`, `call_logs`, `notification_outbox`, `business_integrations` and `audit_logs`. Membership roles are `owner`, `admin` and `staff`. RLS is enabled on all 10 tables with 26 tenant/role-scoped policies. Business onboarding creates the business for the authenticated user and assigns the owner role through a protected trigger. Booking RPCs use `SECURITY INVOKER`; booking creation validates contact inputs and supports a per-business idempotency key. No demo customer, appointment or call-log data was copied into staging.
 
 The fictional business is **Aarogya Dental Studio**, with synthetic dental services, sample prices and opening hours. Contact details and prices are placeholders for demonstration only.
 
@@ -91,9 +95,9 @@ Edge Functions:
 - `notification-outbox-api`: authenticates Make requests and exposes controlled claim/result operations for the email outbox.
 
 Security decisions:
-- Row Level Security is enabled on all seven public tables.
-- No broad anonymous or authenticated policies are present; direct public table access remains blocked.
-- Booking and outbox RPC execution is restricted to the server-side service role.
+- Legacy demo project: RLS is enabled on all seven tables and direct table access is intentionally blocked; its privileged integration functions remain server-side.
+- SaaS staging: RLS is enabled on all 10 tables with membership/role-aware policies. The business-onboarding RPC is `SECURITY INVOKER`; a narrowly scoped owner-membership trigger lives in the non-exposed `private` schema. Booking RPCs are also `SECURITY INVOKER` and check business membership.
+- The Supabase security advisor returned no findings on staging after the onboarding function was changed to `SECURITY INVOKER`.
 - The service-role key is held server-side and is never sent to the browser or voice assistant.
 - The Vapi adapter has its own credential and does not expose the internal booking API credential.
 - The notification worker claims only staff notifications whose recipient matches the business's currently configured notification email.
@@ -151,13 +155,13 @@ The trigger QA ran inside a rolled-back transaction, so no synthetic appointment
 
 ## 10. Next steps
 
-1. Run a final end-to-end voice regression covering booking, cancellation, rescheduling, conflicts, invalid dates, caller corrections and tool/API failures.
-2. Review the Make dispatcher error path and duplicate-send edge case if Gmail succeeds but the status callback fails.
-3. Add a durable staff escalation/dead-letter review workflow for notifications that exhaust retries.
-4. Decide whether customer confirmation emails should be enabled and separately tested.
-5. Package a browser voice demo and record a short walkthrough.
-6. Review and reduce temporary diagnostic logging before any production-like deployment.
-7. Capture screenshots, execution evidence and a concise project demo for the portfolio.
+1. Finish and version-control the SaaS database migrations; test signup, business onboarding and owner/admin/staff permissions.
+2. Add automated cross-tenant isolation tests, including attempts to read or mutate another clinic's customers, appointments, logs and integrations.
+3. Build a free-tier web dashboard for clinic onboarding, services, hours, appointments and team access.
+4. Redesign Edge Functions and Vapi/Make integration routing so tenant identity is derived from authenticated credentials, never caller-supplied `business_id`.
+5. Port appointment notification triggers and a tenant-safe email dispatcher to staging; test retries and duplicate-send behaviour.
+6. Package a browser-based voice demo using free/available quotas; do not promise PSTN calls without a verified free route.
+7. Only after the platform is secure, build the public landing page, demo and launch/marketing materials.
 
 ## Safety boundary
 
