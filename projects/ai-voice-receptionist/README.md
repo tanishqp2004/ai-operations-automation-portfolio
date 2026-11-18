@@ -2,7 +2,7 @@
 
 An AI receptionist platform being evolved into a multi-tenant SaaS for dental clinics. The original single-clinic voice demo remains intact while a separate, zero-cost-quoted Supabase staging project now holds the SaaS database foundation.
 
-> **Project status (19 November 2026):** The legacy single-clinic voice demo remains operational and separate. SaaS staging has been created in Supabase at a quoted $0/month. Its foundation includes 10 tenant-scoped tables, RLS on all 10, 26 role-aware policies, owner/admin/staff memberships, protected business onboarding, and four SECURITY INVOKER booking RPCs. Security advisor returned no findings. Authenticated signup/onboarding, cross-tenant attack tests, dashboard, tenant-aware Vapi/Make provisioning, notification migration and full regression remain. This is an early SaaS foundation, not a production-ready product.
+> **Project status (19 November 2026):** The legacy single-clinic voice demo remains operational and separate. SaaS staging has been created in Supabase at a quoted $0/month. Its foundation includes 10 tenant-scoped tables, RLS on all 10, 26 role-aware policies, owner/admin/staff memberships, protected business onboarding, and four SECURITY INVOKER booking RPCs. Security advisor returned no findings. Authenticated signup/onboarding, cross-tenant attack tests, dashboard, tenant-aware Vapi/Make provisioning, a staging Make dispatcher, end-to-end signup and full regression remain. This is an early SaaS foundation, not a production-ready product.
 
 ## 1. Business problem
 
@@ -159,7 +159,7 @@ The trigger QA ran inside a rolled-back transaction, so no synthetic appointment
 2. Add automated cross-tenant isolation tests, including attempts to read or mutate another clinic's customers, appointments, logs and integrations.
 3. Build a free-tier web dashboard for clinic onboarding, services, hours, appointments and team access.
 4. Redesign Edge Functions and Vapi/Make integration routing so tenant identity is derived from authenticated credentials, never caller-supplied `business_id`.
-5. Port appointment notification triggers and a tenant-safe email dispatcher to staging; test retries and duplicate-send behaviour.
+5. Connect a tenant-safe Make email dispatcher to staging; test retries, staff recipient isolation and duplicate-send behaviour.
 6. Package a browser-based voice demo using free/available quotas; do not promise PSTN calls without a verified free route.
 7. Only after the platform is secure, build the public landing page, demo and launch/marketing materials.
 
