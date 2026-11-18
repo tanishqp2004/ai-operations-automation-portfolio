@@ -2,7 +2,7 @@
 
 An AI receptionist platform being evolved into a multi-tenant SaaS for dental clinics. The original single-clinic voice demo remains intact while a separate, zero-cost-quoted Supabase staging project now holds the SaaS database foundation.
 
-> **Project status (19 November 2026):** The legacy single-clinic voice demo remains operational and separate. SaaS staging has been created in Supabase at a quoted $0/month. Its foundation includes 10 tenant-scoped tables, RLS on all 10, 26 role-aware policies, owner/admin/staff memberships, protected business onboarding, and four SECURITY INVOKER booking RPCs. Security advisor returned no findings. Authenticated signup/onboarding, cross-tenant attack tests, dashboard, tenant-aware Vapi/Make provisioning, a staging Make dispatcher, end-to-end signup and full regression remain. This is an early SaaS foundation, not a production-ready product.
+> **Project status (19 November 2026):** The legacy single-clinic voice demo remains operational and separate. SaaS staging has been created in Supabase at a quoted $0/month. Its foundation includes 10 tenant-scoped tables, RLS on all 10, 26 role-aware policies, owner/admin/staff memberships, protected business onboarding, and four SECURITY INVOKER booking RPCs. Security advisor returned no findings. Real Auth signup/email verification UI, an automated cross-tenant regression suite, dashboard, tenant-aware Vapi/Make provisioning, a staging Make dispatcher and full end-to-end regression remain. This is an early SaaS foundation, not a production-ready product.
 
 ## 1. Business problem
 
