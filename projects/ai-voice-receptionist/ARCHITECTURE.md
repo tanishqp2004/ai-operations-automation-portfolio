@@ -97,6 +97,8 @@ Customer notification rows may be enqueued when a customer email exists, but the
 - `private.has_business_role` is a SECURITY DEFINER helper in the non-exposed `private` schema; execution is restricted to authenticated/service roles.
 - `create_business_for_current_user` is SECURITY INVOKER. A private trigger assigns the authenticated creator as owner; business hours start closed until configured.
 - Availability, create, cancel and reschedule RPCs use SECURITY INVOKER and verify membership. Booking creation validates name/phone/email/notes and supports a per-business idempotency key.
+- A private appointment trigger queues staff-only confirmation, cancellation and reschedule events in the tenant-scoped notification outbox. Service-role-only claim/result RPCs use a processing lease, bounded attempts and retry backoff; no Make dispatcher is connected to staging yet.
+- Rolled-back authenticated QA verified business onboarding, owner membership, booking creation, idempotent retry, one staff outbox event, and zero visibility/membership for an unrelated user. No QA rows persisted.
 - Security advisor: no findings after the onboarding RPC was changed to SECURITY INVOKER. Performance advisor currently reports unused indexes on the empty staging database; these are expected before workload testing.
 - No demo clinic, customer, appointment or call-log records were copied into staging.
 - Edge Functions have JWT verification disabled because they use their own shared-key authentication. Requests without the relevant custom header are rejected by function code.
