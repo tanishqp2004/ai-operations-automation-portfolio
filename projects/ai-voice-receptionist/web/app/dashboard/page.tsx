@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase nested relation inference is currently wider than the generated database types. */
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addService, createBusiness, saveHours, updateAppointment } from "./actions";
