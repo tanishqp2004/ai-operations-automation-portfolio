@@ -1,0 +1,6 @@
+import Link from "next/link";
+import { signUp } from "@/app/auth/actions";
+export default async function Signup({ searchParams }: { searchParams: Promise<{error?:string}> }) {
+  const q = await searchParams;
+  return <main className="auth"><div className="brand">Clinic<span>Desk</span></div><section className="card" style={{marginTop:22}}><div className="eyebrow">Get started</div><h1>Create your workspace</h1><p className="sub">Start with your email. You can add your clinic details after confirming your account.</p>{q.error&&<p className="error">{q.error}</p>}<form action={signUp}><div className="field"><label>Work email</label><input name="email" type="email" required autoComplete="email"/></div><div className="field"><label>Password</label><input name="password" type="password" minLength={8} required autoComplete="new-password"/></div><button className="btn" style={{width:"100%",marginTop:8}}>Create account</button></form><p className="muted" style={{marginTop:20}}>Already registered? <Link href="/login" style={{color:"var(--green)",fontWeight:700}}>Sign in</Link></p></section></main>;
+}
