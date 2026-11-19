@@ -153,11 +153,29 @@ The trigger QA ran inside a rolled-back transaction, so no synthetic appointment
 - Indian PSTN number support has not been established for this Vapi setup; the planned portfolio demonstration should use a browser voice interface unless a compliant telephony route is separately validated.
 - The clinic and its service prices are fictional. The agent is administrative only and must not diagnose conditions or recommend treatment.
 
+### ClinicDesk web app (SaaS MVP)
+
+The first Next.js dashboard implementation lives in [`web/`](./web/). It includes:
+- Email/password signup, email-confirmation callback, login and sign-out using Supabase SSR cookies.
+- Authenticated clinic onboarding through `create_business_for_current_user`.
+- A tenant-scoped dashboard for appointments, service catalogue and weekly opening hours.
+- Appointment status updates and owner/admin-only service and hours management.
+- No service-role key in browser code; database access uses the publishable key plus the signed-in user's RLS session.
+
+#### Run locally
+1. Install Node.js 20+.
+2. Copy `web/.env.example` to `web/.env.local`.
+3. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `NEXT_PUBLIC_SITE_URL=http://localhost:3000`.
+4. In Supabase Auth URL configuration, set the local Site URL and allow `http://localhost:3000/auth/callback` as a redirect URL.
+5. From `web/`, run `npm install` and `npm run dev`; open `http://localhost:3000`.
+
+The app uses the SaaS staging project, not the original demo project. The dashboard is an early MVP: team invitations, customer self-service, voice integrations, billing and public deployment are not included yet. Do not use real patient information until privacy, retention, consent and operational controls have been reviewed.
+
 ## 10. Next steps
 
 1. Finish and version-control the SaaS database migrations; test signup, business onboarding and owner/admin/staff permissions.
 2. Add automated cross-tenant isolation tests, including attempts to read or mutate another clinic's customers, appointments, logs and integrations.
-3. Build a free-tier web dashboard for clinic onboarding, services, hours, appointments and team access.
+3. Finish local build/auth testing and deploy the ClinicDesk web MVP on a free hosting tier.
 4. Redesign Edge Functions and Vapi/Make integration routing so tenant identity is derived from authenticated credentials, never caller-supplied `business_id`.
 5. Connect a tenant-safe Make email dispatcher to staging; test retries, staff recipient isolation and duplicate-send behaviour.
 6. Package a browser-based voice demo using free/available quotas; do not promise PSTN calls without a verified free route.
