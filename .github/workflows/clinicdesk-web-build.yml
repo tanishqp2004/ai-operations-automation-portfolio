@@ -1,0 +1,29 @@
+name: ClinicDesk web build
+on:
+  push:
+    paths:
+      - "projects/ai-voice-receptionist/web/**"
+      - ".github/workflows/clinicdesk-web-build.yml"
+  pull_request:
+    paths:
+      - "projects/ai-voice-receptionist/web/**"
+      - ".github/workflows/clinicdesk-web-build.yml"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/ai-voice-receptionist/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: projects/ai-voice-receptionist/web/package.json
+      - run: npm install
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_placeholder
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
