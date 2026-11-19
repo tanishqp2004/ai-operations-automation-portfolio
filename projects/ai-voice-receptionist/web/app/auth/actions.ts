@@ -16,7 +16,7 @@ export async function signUp(formData: FormData) {
   const email = String(formData.get("email") || "").trim();
   const password = String(formData.get("password") || "");
   if (password.length < 8) redirect("/signup?error=" + encodeURIComponent("Use at least 8 characters for your password."));
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\\/+$/, "");
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
   const { error } = await supabase.auth.signUp({
     email,
     password,
@@ -31,7 +31,7 @@ export async function resendSignupConfirmation(formData: FormData) {
   if (!email) redirect("/login?error=" + encodeURIComponent("Enter your email address first."));
 
   const supabase = await createClient();
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\\/+$/, "");
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000");
   const { error } = await supabase.auth.resend({
     type: "signup",
     email,
