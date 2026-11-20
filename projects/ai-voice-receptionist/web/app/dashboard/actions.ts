@@ -12,6 +12,13 @@ async function currentBusiness() {
   if (error) throw new Error(error.message);
   return { supabase, userId: String(claims.claims.sub), membership };
 }
+function parseTime12(value: string): string | null {
+  const match = /^(1[0-2]|0?[1-9]):([0-5][0-9])\s*(AM|PM)$/i.exec(value.trim());
+  if (!match) return null;
+  let hour = Number(match[1]) % 12;
+  if (match[3].toUpperCase() === "PM") hour += 12;
+  return `${String(hour).padStart(2, "0")}:${match[2]}`;
+}
 function bookingError(message: string): never {
   redirect("/dashboard?error=" + encodeURIComponent(message));
 }
@@ -69,9 +76,12 @@ export async function saveHours(formData: FormData) {
   if (!membership || !["owner","admin"].includes(membership.role)) throw new Error("Only clinic owners and admins can edit hours.");
   for (let day=0; day<7; day++) {
     const closed = formData.get("closed_"+day) === "on";
-    const opens = String(formData.get("opens_"+day) || "09:00");
-    const closes = String(formData.get("closes_"+day) || "18:00");
-    const { error } = await supabase.from("business_hours").update({ is_closed: closed, opens_at: closed ? null : opens, closes_at: closed ? null : closes }).eq("business_id", membership.business_id).eq("day_of_week", day);
+    const opensInput = String(formData.get("opens_"+day) || "09:00 AM");
+    const closesInput = String(formData.get("closes_"+day) || "06:00 PM");
+    const opens = closed ? null : parseTime12(opensInput);
+    const closes = closed ? null : parseTime12(closesInput);
+    if (!closed && (!opens || !closes || opens >= closes)) bookingError(`Enter valid 12-hour opening and closing times for ${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][day]}.`);
+    const { error } = await supabase.from("business_hours").update({ is_closed: closed, opens_at: opens, closes_at: closes }).eq("business_id", membership.business_id).eq("day_of_week", day);
     if (error) throw new Error(error.message);
   }
   revalidatePath("/dashboard");
@@ -86,7 +96,8 @@ export async function createAppointment(formData: FormData) {
   const email = emailRaw || null;
   const serviceId = String(formData.get("service_id") || "");
   const date = String(formData.get("date") || "");
-  const time = String(formData.get("time") || "");
+  const timeInput = String(formData.get("time") || "");
+  const time = parseTime12(timeInput) || "";
   const notes = String(formData.get("notes") || "").trim().slice(0, 1000) || null;
   if (fullName.length < 2 || fullName.length > 120 || !/^\d{10}$/.test(phone) || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) bookingError("Enter a valid patient name and a 10-digit phone number. Email is optional.");
   const [{ data: business }, { data: service }, { data: hours }] = await Promise.all([
@@ -96,6 +107,7 @@ export async function createAppointment(formData: FormData) {
   ]);
   if (!business || !service) bookingError("Choose an active service from your clinic.");
   const startsAt = localDateTimeToIso(date, time, business.timezone);
+  if (!time) bookingError("Enter the appointment time in 12-hour format, e.g. 10:30 AM.");
   if (!startsAt) bookingError("That date or time is invalid for your clinic timezone.");
   const startDate = new Date(startsAt);
   if (startDate.getTime() <= Date.now()) bookingError("Choose a future appointment time.");
