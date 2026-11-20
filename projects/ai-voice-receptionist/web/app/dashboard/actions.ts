@@ -167,7 +167,7 @@ export async function getAvailableSlots(date: string, serviceId: string): Promis
   if (!membership || !["owner", "admin", "staff"].includes(membership.role)) {
     return { slots: [], message: "You do not have permission to view appointment availability." };
   }
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !serviceId) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !serviceId) {
     return { slots: [], message: "Choose a service and appointment date to see available times." };
   }
   const [{ data: business }, { data: service }, { data: hours }] = await Promise.all([
