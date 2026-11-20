@@ -160,3 +160,65 @@ export async function updateAppointment(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/dashboard");
 }
+
+
+export async function getAvailableSlots(date: string, serviceId: string): Promise<{ slots: string[]; message: string }> {
+  const { supabase, membership } = await currentBusiness();
+  if (!membership || !["owner", "admin", "staff"].includes(membership.role)) {
+    return { slots: [], message: "You do not have permission to view appointment availability." };
+  }
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) || !serviceId) {
+    return { slots: [], message: "Choose a service and appointment date to see available times." };
+  }
+  const [{ data: business }, { data: service }, { data: hours }] = await Promise.all([
+    supabase.from("businesses").select("timezone").eq("id", membership.business_id).single(),
+    supabase.from("services").select("id,duration_minutes").eq("id", serviceId).eq("business_id", membership.business_id).eq("is_active", true).single(),
+    supabase.from("business_hours").select("day_of_week,opens_at,closes_at,is_closed").eq("business_id", membership.business_id)
+  ]);
+  if (!business || !service) return { slots: [], message: "Choose a valid active service." };
+  const [year, month, day] = date.split("-").map(Number);
+  const dateCheck = new Date(Date.UTC(year, month - 1, day));
+  if (dateCheck.getUTCFullYear() !== year || dateCheck.getUTCMonth() + 1 !== month || dateCheck.getUTCDate() !== day) {
+    return { slots: [], message: "Choose a valid date." };
+  }
+  const dayOfWeek = dateCheck.getUTCDay();
+  const dayHours = (hours || []).find((item) => item.day_of_week === dayOfWeek);
+  if (!dayHours || dayHours.is_closed || !dayHours.opens_at || !dayHours.closes_at) {
+    return { slots: [], message: "The clinic is closed on this date." };
+  }
+  const dayStart = localDateTimeToIso(date, "00:00", business.timezone);
+  const nextDate = new Date(Date.UTC(year, month - 1, day + 1));
+  const nextDateValue = [nextDate.getUTCFullYear(), String(nextDate.getUTCMonth() + 1).padStart(2, "0"), String(nextDate.getUTCDate()).padStart(2, "0")].join("-");
+  const dayEnd = localDateTimeToIso(nextDateValue, "00:00", business.timezone);
+  if (!dayStart || !dayEnd) return { slots: [], message: "Could not calculate this clinic date." };
+  const { data: existing, error } = await supabase.from("appointments")
+    .select("starts_at,ends_at")
+    .eq("business_id", membership.business_id)
+    .eq("resource_key", "main-calendar")
+    .in("status", ["pending", "confirmed"])
+    .lt("starts_at", dayEnd)
+    .gt("ends_at", dayStart);
+  if (error) return { slots: [], message: "Could not load availability. Please try again." };
+  const [openHour, openMinute] = dayHours.opens_at.slice(0, 5).split(":").map(Number);
+  const [closeHour, closeMinute] = dayHours.closes_at.slice(0, 5).split(":").map(Number);
+  const opening = openHour * 60 + openMinute;
+  const closing = closeHour * 60 + closeMinute;
+  const now = Date.now();
+  const slots: string[] = [];
+  for (let start = opening; start + service.duration_minutes <= closing; start += 15) {
+    const hour = Math.floor(start / 60);
+    const minute = start % 60;
+    const localTime = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    const startsAt = localDateTimeToIso(date, localTime, business.timezone);
+    if (!startsAt || new Date(startsAt).getTime() <= now) continue;
+    const endsAt = new Date(new Date(startsAt).getTime() + service.duration_minutes * 60_000).toISOString();
+    const hasConflict = (existing || []).some((appointment) =>
+      new Date(appointment.starts_at).getTime() < new Date(endsAt).getTime() &&
+      new Date(appointment.ends_at).getTime() > new Date(startsAt).getTime()
+    );
+    if (hasConflict) continue;
+    const displayHour = hour % 12 || 12;
+    slots.push(`${displayHour}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`);
+  }
+  return { slots, message: slots.length ? `${slots.length} available start times.` : "No available slots for this service on that date." };
+}
