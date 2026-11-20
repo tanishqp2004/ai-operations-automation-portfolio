@@ -16,8 +16,8 @@ function bookingError(message: string): never {
   redirect("/dashboard?error=" + encodeURIComponent(message));
 }
 function localDateTimeToIso(dateValue: string, timeValue: string, timeZone: string): string | null {
-  const dateMatch = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(dateValue);
-  const timeMatch = /^(\\d{2}):(\\d{2})$/.exec(timeValue);
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
+  const timeMatch = /^(\d{2}):(\d{2})$/.exec(timeValue);
   if (!dateMatch || !timeMatch) return null;
   const [, ys, ms, ds] = dateMatch;
   const [, hs, mins] = timeMatch;
@@ -80,14 +80,15 @@ export async function createAppointment(formData: FormData) {
   const { supabase, membership } = await currentBusiness();
   if (!membership || !["owner","admin","staff"].includes(membership.role)) bookingError("You do not have permission to create appointments.");
   const fullName = String(formData.get("full_name") || "").trim();
-  const phone = String(formData.get("phone") || "").trim();
+  const phoneInput = String(formData.get("phone") || "").trim();
+  const phone = phoneInput.replace(/\D/g, "");
   const emailRaw = String(formData.get("email") || "").trim();
   const email = emailRaw || null;
   const serviceId = String(formData.get("service_id") || "");
   const date = String(formData.get("date") || "");
   const time = String(formData.get("time") || "");
   const notes = String(formData.get("notes") || "").trim().slice(0, 1000) || null;
-  if (fullName.length < 2 || fullName.length > 120 || !/^\\+?[0-9 ()-]{7,20}$/.test(phone) || (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))) bookingError("Enter a valid patient name, phone number and email.");
+  if (fullName.length < 2 || fullName.length > 120 || !/^\d{10}$/.test(phone) || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) bookingError("Enter a valid patient name and a 10-digit phone number. Email is optional.");
   const [{ data: business }, { data: service }, { data: hours }] = await Promise.all([
     supabase.from("businesses").select("timezone").eq("id", membership.business_id).single(),
     supabase.from("services").select("id,name,duration_minutes").eq("id", serviceId).eq("business_id", membership.business_id).eq("is_active", true).single(),
