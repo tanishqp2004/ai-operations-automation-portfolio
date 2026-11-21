@@ -6,8 +6,16 @@ export async function signIn(formData: FormData) {
   const supabase = await createClient();
   const email = String(formData.get("email") || "").trim();
   const password = String(formData.get("password") || "");
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) redirect("/login?error=" + encodeURIComponent(error.message));
+  let signInError: string | null = null;
+  try {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) signInError = error.message;
+  } catch {
+    // Supabase Auth can occasionally return a non-JSON gateway response.
+    // Keep transient upstream failures from surfacing as an unhandled server error.
+    signInError = "The sign-in service is temporarily unavailable. Please wait a moment and try again. Your account and clinic data are safe.";
+  }
+  if (signInError) redirect("/login?error=" + encodeURIComponent(signInError));
   redirect("/dashboard");
 }
 
