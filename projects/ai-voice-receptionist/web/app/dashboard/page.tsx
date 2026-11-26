@@ -28,7 +28,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     supabase.from("services").select("id,name,duration_minutes,price,is_active").eq("business_id",businessId).order("name"),
     supabase.from("business_hours").select("day_of_week,opens_at,closes_at,is_closed").eq("business_id",businessId).order("day_of_week"),
     supabase.from("appointments").select("id,booking_reference,starts_at,ends_at,status,customers(full_name,phone),services(name)").eq("business_id",businessId).order("starts_at",{ascending:false}).limit(20),
-    supabase.from("appointments").select("id",{count:"exact",head:true}).eq("business_id",businessId).gte("starts_at",new Date().toISOString()).neq("status","cancelled")
+    supabase.from("appointments").select("id",{count:"exact",head:true}).eq("business_id",businessId).gte("starts_at",new Date().toISOString()).in("status",["pending","confirmed"])
   ]);
   if (!business) redirect("/dashboard?error=Could+not+load+clinic");
   const upcoming = upcomingCount ?? 0;
