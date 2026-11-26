@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createAppointment, getAvailableSlots } from "./actions";
 
 type Service = { id: string; name: string; duration_minutes: number; price: number | null };
-export default function AppointmentForm({ services, today, timezone }: { services: Service[]; today: string; timezone: string }) {
+export default function AppointmentForm({ services, today, timezone, idempotencyKey }: { services: Service[]; today: string; timezone: string; idempotencyKey: string }) {
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -36,6 +36,7 @@ export default function AppointmentForm({ services, today, timezone }: { service
   }, [serviceId, date]);
 
   return <form action={createAppointment}>
+    <input type="hidden" name="idempotency_key" value={idempotencyKey}/>
     <div className="formgrid">
       <div className="field"><label>Patient full name</label><input name="full_name" placeholder="Patient name" required minLength={2} maxLength={120}/></div>
       <div className="field"><label>Phone number</label><input name="phone" type="tel" inputMode="numeric" pattern="[0-9]{10}" minLength={10} maxLength={10} placeholder="9876543210" title="Enter a 10-digit phone number" required/></div>
