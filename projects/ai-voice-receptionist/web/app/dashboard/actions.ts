@@ -155,14 +155,6 @@ export async function createAppointment(formData: FormData) {
     bookingError("Appointments can be booked up to 365 days in advance.");
   }
 
-  const localToday = localDateInTimeZone(new Date(), business.timezone);
-  const [todayYear, todayMonth, todayDay] = localToday.split("-").map(Number);
-  const maxDate = new Date(Date.UTC(todayYear, todayMonth - 1, todayDay));
-  maxDate.setUTCDate(maxDate.getUTCDate() + 365);
-  const maxDateValue = [maxDate.getUTCFullYear(), String(maxDate.getUTCMonth() + 1).padStart(2, "0"), String(maxDate.getUTCDate()).padStart(2, "0")].join("-");
-  if (date < localToday || date > maxDateValue) {
-    return { slots: [], message: "Choose a date within the next 365 days." };
-  }
   const dayOfWeek = dateCheck.getUTCDay();
   const dayHours = (hours || []).find((item) => item.day_of_week === dayOfWeek);
   if (!dayHours || dayHours.is_closed || !dayHours.opens_at || !dayHours.closes_at) {
@@ -191,7 +183,7 @@ export async function createAppointment(formData: FormData) {
 
   if (error || !data || typeof data !== "object" || !("booking_reference" in data)) {
     const message = error?.message || "The appointment could not be saved. Please try again.";
-    if (/slot has just been booked|conflicting booking|outside business hours|future|active service/i.test(message)) {
+    if (/slot has just been booked|conflicting booking|outside business hours|future|active service|365 days/i.test(message)) {
       bookingError(message);
     }
     bookingError("The appointment could not be saved. Please try again.");
@@ -231,6 +223,14 @@ export async function getAvailableSlots(date: string, serviceId: string): Promis
   const dateCheck = new Date(Date.UTC(year, month - 1, day));
   if (dateCheck.getUTCFullYear() !== year || dateCheck.getUTCMonth() + 1 !== month || dateCheck.getUTCDate() !== day) {
     return { slots: [], message: "Choose a valid date." };
+  }
+  const localToday = localDateInTimeZone(new Date(), business.timezone);
+  const [todayYear, todayMonth, todayDay] = localToday.split("-").map(Number);
+  const maxDate = new Date(Date.UTC(todayYear, todayMonth - 1, todayDay));
+  maxDate.setUTCDate(maxDate.getUTCDate() + 365);
+  const maxDateValue = [maxDate.getUTCFullYear(), String(maxDate.getUTCMonth() + 1).padStart(2, "0"), String(maxDate.getUTCDate()).padStart(2, "0")].join("-");
+  if (date < localToday || date > maxDateValue) {
+    return { slots: [], message: "Choose a date within the next 365 days." };
   }
   const dayOfWeek = dateCheck.getUTCDay();
   const dayHours = (hours || []).find((item) => item.day_of_week === dayOfWeek);
