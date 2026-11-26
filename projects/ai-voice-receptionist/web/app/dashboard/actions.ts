@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -97,16 +98,27 @@ function localDateTimeToIso(dateValue: string, timeValue: string, timeZone: stri
   }
 }
 export async function createBusiness(formData: FormData) {
-  const { supabase, membership, membershipCount } = await currentBusiness();
-  if (membershipCount > 0) redirect("/dashboard?error=Select+one+of+your+existing+clinics+first");
-  if (membership) redirect("/dashboard");
+  const { supabase } = await currentBusiness();
   const name = String(formData.get("name") || "").trim();
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50);
+  const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50);
+  const slug = baseSlug ? `${baseSlug}-${randomBytes(3).toString("hex")}` : "";
   const timezone = String(formData.get("timezone") || "Asia/Kolkata");
-  if (name.length < 2 || !slug) redirect("/dashboard?error=Enter+a+valid+clinic+name");
-  const { error } = await supabase.rpc("create_business_for_current_user", { p_name: name, p_slug: slug, p_timezone: timezone });
-  if (error) redirect("/dashboard?error=" + encodeURIComponent(error.message));
-  revalidatePath("/dashboard"); redirect("/dashboard");
+  if (name.length < 2 || name.length > 120 || !slug) redirect("/dashboard?error=Enter+a+valid+clinic+name");
+  const { data, error } = await supabase.rpc("create_business_for_current_user", { p_name: name, p_slug: slug, p_timezone: timezone });
+  const createdBusiness = data as { business_id?: string } | null;
+  if (error || !createdBusiness?.business_id) {
+    redirect("/dashboard?error=" + encodeURIComponent(error?.message || "The clinic could not be created. Please try again."));
+  }
+  const cookieStore = await cookies();
+  cookieStore.set(ACTIVE_BUSINESS_COOKIE, createdBusiness.business_id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30
+  });
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
 }
 export async function addService(formData: FormData) {
   const { supabase, membership } = await currentBusiness();
