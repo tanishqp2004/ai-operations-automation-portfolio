@@ -100,13 +100,27 @@ function localDateTimeToIso(dateValue: string, timeValue: string, timeZone: stri
 export async function createBusiness(formData: FormData) {
   const { supabase } = await currentBusiness();
   const name = String(formData.get("name") || "").trim();
-  const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50);
-  const slug = baseSlug ? `${baseSlug}-${randomBytes(3).toString("hex")}` : "";
+  const requestKey = String(formData.get("creation_request_key") || "");
+  const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,46);
+  const slug = baseSlug && /^[a-f0-9]{32}$/i.test(requestKey) ? `${baseSlug}-${requestKey.slice(0,12).toLowerCase()}` : "";
   const timezone = String(formData.get("timezone") || "Asia/Kolkata");
   if (name.length < 2 || name.length > 120 || !slug) redirect("/dashboard?error=Enter+a+valid+clinic+name");
   const { data, error } = await supabase.rpc("create_business_for_current_user", { p_name: name, p_slug: slug, p_timezone: timezone });
-  const createdBusiness = data as { business_id?: string } | null;
-  if (error || !createdBusiness?.business_id) {
+  let createdBusiness = data as { business_id?: string } | null;
+  if (error) {
+    // A retry with the same request key has the same unique slug. Reuse the
+    // clinic created by the first request instead of creating another one.
+    if (error.code === "23505" || /duplicate key|already exists/i.test(error.message)) {
+      const { data: existing } = await supabase.from("businesses").select("id").eq("slug", slug).maybeSingle();
+      if (existing?.id) {
+        const { data: existingMembership } = await supabase.from("business_memberships")
+          .select("business_id").eq("user_id", (await supabase.auth.getClaims()).data?.claims?.sub || "")
+          .eq("business_id", existing.id).maybeSingle();
+        if (existingMembership) createdBusiness = { business_id: existingMembership.business_id };
+      }
+    }
+  }
+  if (!createdBusiness?.business_id) {
     redirect("/dashboard?error=" + encodeURIComponent(error?.message || "The clinic could not be created. Please try again."));
   }
   const cookieStore = await cookies();
