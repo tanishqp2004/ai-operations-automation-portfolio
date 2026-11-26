@@ -2,9 +2,10 @@
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
-import { addService, createBusiness, saveHours, updateAppointment } from "./actions";
+import { addService, createBusiness, saveHours, updateAppointment, selectActiveBusiness } from "./actions";
 import AppointmentForm from "./AppointmentForm";
 import { signOut } from "@/app/auth/actions";
+import { cookies } from "next/headers";
 
 const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 function formatTime12(value?: string | null, fallback = "09:00 AM") {
@@ -20,8 +21,28 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims) redirect("/login");
   const email = String(claims.claims.email || "");
-  const { data: membership } = await supabase.from("business_memberships").select("business_id,role").limit(1).maybeSingle();
-  if (!membership) return <main className="shell"><header className="topbar"><div className="brand">Clinic<span>Desk</span></div><form action={signOut}><button className="btn ghost">Sign out</button></form></header><section className="card" style={{maxWidth:650,margin:"8vh auto"}}><div className="eyebrow">One last step</div><h1 className="h1">Set up your clinic</h1><p className="sub">Create your workspace to start managing appointments. Your timezone defaults to India.</p>{q.error&&<p className="error">{q.error}</p>}<form action={createBusiness}><div className="field"><label>Clinic name</label><input name="name" placeholder="e.g. Smile Dental Studio" required minLength={2}/></div><div className="field"><label>Timezone</label><select name="timezone" defaultValue="Asia/Kolkata"><option value="Asia/Kolkata">India (Asia/Kolkata)</option><option value="Asia/Dubai">Dubai</option><option value="Europe/London">London</option><option value="America/New_York">New York</option></select></div><button className="btn">Create clinic workspace</button></form></section></main>;
+  const userId = String(claims.claims.sub);
+  const { data: memberships, error: membershipError } = await supabase
+    .from("business_memberships")
+    .select("business_id,role")
+    .eq("user_id", userId);
+  if (membershipError) throw new Error(membershipError.message);
+  const memberRows = memberships || [];
+  if (memberRows.length === 0) return <main className="shell"><header className="topbar"><div className="brand">Clinic<span>Desk</span></div><form action={signOut}><button className="btn ghost">Sign out</button></form></header><section className="card" style={{maxWidth:650,margin:"8vh auto"}}><div className="eyebrow">One last step</div><h1 className="h1">Set up your clinic</h1><p className="sub">Create your workspace to start managing appointments. Your timezone defaults to India.</p>{q.error&&<p className="error">{q.error}</p>}<form action={createBusiness}><div className="field"><label>Clinic name</label><input name="name" placeholder="e.g. Smile Dental Studio" required minLength={2}/></div><div className="field"><label>Timezone</label><select name="timezone" defaultValue="Asia/Kolkata"><option value="Asia/Kolkata">India (Asia/Kolkata)</option><option value="Asia/Dubai">Dubai</option><option value="Europe/London">London</option><option value="America/New_York">New York</option></select></div><button className="btn">Create clinic workspace</button></form></section></main>;
+  const cookieStore = await cookies();
+  const requestedBusinessId = cookieStore.get("clinicdesk_active_business")?.value;
+  let membership = requestedBusinessId ? memberRows.find((item) => item.business_id === requestedBusinessId) || null : null;
+  if (!membership && memberRows.length === 1) membership = memberRows[0];
+  if (!membership && memberRows.length > 1) {
+    const { data: clinics, error: clinicsError } = await supabase
+      .from("businesses")
+      .select("id,name")
+      .in("id", memberRows.map((item) => item.business_id));
+    if (clinicsError) throw new Error(clinicsError.message);
+    const clinicNames = new Map((clinics || []).map((clinic) => [clinic.id, clinic.name]));
+    return <main className="shell"><header className="topbar"><div className="brand">Clinic<span>Desk</span></div><nav className="nav"><span>{email}</span><form action={signOut}><button className="btn ghost">Sign out</button></form></nav></header><section className="card" style={{maxWidth:650,margin:"8vh auto"}}><div className="eyebrow">Workspace selection</div><h1 className="h1">Choose your clinic</h1><p className="sub">Select the clinic workspace you want to manage. Your access is checked against your account.</p>{q.error&&<p className="error">{q.error}</p>}<form action={selectActiveBusiness}><div className="field"><label htmlFor="business_id">Clinic workspace</label><select id="business_id" name="business_id" required defaultValue=""><option value="" disabled>Select a clinic</option>{memberRows.map((item) => <option key={item.business_id} value={item.business_id}>{clinicNames.get(item.business_id) || "Clinic workspace"} · {item.role}</option>)}</select></div><button className="btn">Open clinic workspace</button></form></section></main>;
+  }
+  if (!membership) redirect("/dashboard?error=Could+not+resolve+your+clinic+membership");
   const businessId = membership.business_id;
   const [{data:business},{data:services},{data:hours},{data:appointments},{count:upcomingCount}] = await Promise.all([
     supabase.from("businesses").select("id,name,timezone,phone,email,address").eq("id",businessId).single(),
