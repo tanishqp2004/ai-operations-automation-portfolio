@@ -1,15 +1,53 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+
+const ACTIVE_BUSINESS_COOKIE = "clinicdesk_active_business";
 
 async function currentBusiness() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims) redirect("/login");
-  const { data: membership, error } = await supabase.from("business_memberships").select("business_id, role").limit(1).maybeSingle();
+  const userId = String(claims.claims.sub);
+  const [{ data: memberships, error }, cookieStore] = await Promise.all([
+    supabase.from("business_memberships").select("business_id, role").eq("user_id", userId),
+    cookies()
+  ]);
   if (error) throw new Error(error.message);
-  return { supabase, userId: String(claims.claims.sub), membership };
+  const activeBusinessId = cookieStore.get(ACTIVE_BUSINESS_COOKIE)?.value;
+  let membership = activeBusinessId
+    ? (memberships || []).find((item) => item.business_id === activeBusinessId) || null
+    : null;
+  if (!membership && (memberships || []).length === 1) membership = memberships![0];
+  return { supabase, userId, membership, membershipCount: memberships?.length || 0 };
+}
+
+export async function selectActiveBusiness(formData: FormData) {
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  if (!claims?.claims) redirect("/login");
+  const userId = String(claims.claims.sub);
+  const businessId = String(formData.get("business_id") || "");
+  if (!businessId || businessId.length > 100) redirect("/dashboard?error=Choose+a+valid+clinic");
+  const { data: membership, error } = await supabase
+    .from("business_memberships")
+    .select("business_id")
+    .eq("user_id", userId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (error || !membership) redirect("/dashboard?error=You+do+not+have+access+to+that+clinic");
+  const cookieStore = await cookies();
+  cookieStore.set(ACTIVE_BUSINESS_COOKIE, membership.business_id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30
+  });
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
 }
 function parseTime12(value: string): string | null {
   const match = /^(1[0-2]|0?[1-9]):([0-5][0-9])\s*(AM|PM)$/i.exec(value.trim());
@@ -59,7 +97,8 @@ function localDateTimeToIso(dateValue: string, timeValue: string, timeZone: stri
   }
 }
 export async function createBusiness(formData: FormData) {
-  const { supabase, membership } = await currentBusiness();
+  const { supabase, membership, membershipCount } = await currentBusiness();
+  if (membershipCount > 0) redirect("/dashboard?error=Select+one+of+your+existing+clinics+first");
   if (membership) redirect("/dashboard");
   const name = String(formData.get("name") || "").trim();
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50);
