@@ -44,6 +44,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   }
   if (!membership) redirect("/dashboard?error=Could+not+resolve+your+clinic+membership");
   const businessId = membership.business_id;
+  const { data: availableClinics, error: availableClinicsError } = memberRows.length > 1
+    ? await supabase.from("businesses").select("id,name").in("id", memberRows.map((item) => item.business_id))
+    : { data: [], error: null };
+  if (availableClinicsError) throw new Error(availableClinicsError.message);
   const [{data:business},{data:services},{data:hours},{data:appointments},{count:upcomingCount}] = await Promise.all([
     supabase.from("businesses").select("id,name,timezone,phone,email,address").eq("id",businessId).single(),
     supabase.from("services").select("id,name,duration_minutes,price,is_active").eq("business_id",businessId).order("name"),
@@ -54,7 +58,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   if (!business) redirect("/dashboard?error=Could+not+load+clinic");
   const upcoming = upcomingCount ?? 0;
   const today = new Intl.DateTimeFormat("en-CA",{timeZone:business.timezone,year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-  return <main className="shell"><header className="topbar"><div className="brand">Clinic<span>Desk</span></div><nav className="nav"><span>{email}</span><form action={signOut}><button className="btn ghost">Sign out</button></form></nav></header>
+  return <main className="shell"><header className="topbar"><div className="brand">Clinic<span>Desk</span></div><nav className="nav">{memberRows.length > 1&&<form action={selectActiveBusiness} style={{display:"flex",gap:6,alignItems:"center"}}><label className="muted" htmlFor="switch_business_id">Clinic</label><select id="switch_business_id" name="business_id" defaultValue={businessId} aria-label="Switch clinic workspace" style={{border:"1px solid var(--line)",borderRadius:8,padding:7,maxWidth:190}}>{(availableClinics||[]).map((clinic:any)=><option key={clinic.id} value={clinic.id}>{clinic.name}</option>)}</select><button className="btn secondary" style={{padding:"7px 9px"}}>Switch</button></form>}<span>{email}</span><form action={signOut}><button className="btn ghost">Sign out</button></form></nav></header>
   <div className="hero"><div><div className="eyebrow">Clinic workspace · {membership.role}</div><h1 className="h1">{business.name}</h1><p className="sub">Your front desk, appointments and services at a glance.</p></div><span className="pill">Free workspace</span></div>
   {q.error&&<p className="error">{q.error}</p>}
   {q.booked&&<p className="notice" role="status">Appointment booked successfully. Reference: <strong>{q.booked}</strong></p>}
