@@ -147,7 +147,8 @@ export async function createAppointment(formData: FormData) {
   ) {
     bookingError("Choose a valid appointment date.");
   }
-  const maxDate = new Date(Date.UTC(year, month - 1, day));
+  const [todayYear, todayMonth, todayDay] = localToday.split("-").map(Number);
+  const maxDate = new Date(Date.UTC(todayYear, todayMonth - 1, todayDay));
   maxDate.setUTCDate(maxDate.getUTCDate() + 365);
   const maxDateValue = [maxDate.getUTCFullYear(), String(maxDate.getUTCMonth() + 1).padStart(2, "0"), String(maxDate.getUTCDate()).padStart(2, "0")].join("-");
   if (date < localToday || date > maxDateValue) {
@@ -155,7 +156,8 @@ export async function createAppointment(formData: FormData) {
   }
 
   const localToday = localDateInTimeZone(new Date(), business.timezone);
-  const maxDate = new Date(Date.UTC(year, month - 1, day));
+  const [todayYear, todayMonth, todayDay] = localToday.split("-").map(Number);
+  const maxDate = new Date(Date.UTC(todayYear, todayMonth - 1, todayDay));
   maxDate.setUTCDate(maxDate.getUTCDate() + 365);
   const maxDateValue = [maxDate.getUTCFullYear(), String(maxDate.getUTCMonth() + 1).padStart(2, "0"), String(maxDate.getUTCDate()).padStart(2, "0")].join("-");
   if (date < localToday || date > maxDateValue) {
