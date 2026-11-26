@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { addService, createBusiness, saveHours, updateAppointment, selectActiveBusiness } from "./actions";
 import AppointmentForm from "./AppointmentForm";
+import CreateClinicForm from "./CreateClinicForm";
 import { signOut } from "@/app/auth/actions";
 import { cookies } from "next/headers";
 
@@ -64,11 +65,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   <details className="card" style={{marginTop:18}}>
     <summary style={{cursor:"pointer",fontWeight:600}}>＋ Add another clinic</summary>
     <p className="muted" style={{marginTop:10}}>Create another clinic workspace under this same login. You will be switched to it automatically.</p>
-    <form action={createBusiness} style={{maxWidth:520}}>
-      <div className="field"><label>New clinic name</label><input name="name" placeholder="e.g. Smile Dental Studio – Branch 2" required minLength={2} maxLength={120}/></div>
-      <div className="field"><label>Timezone</label><select name="timezone" defaultValue="Asia/Kolkata"><option value="Asia/Kolkata">India (Asia/Kolkata)</option><option value="Asia/Dubai">Dubai</option><option value="Europe/London">London</option><option value="America/New_York">New York</option></select></div>
-      <button className="btn">Create clinic and switch</button>
-    </form>
+    <CreateClinicForm action={createBusiness} requestKey={randomBytes(16).toString("hex")}/>
   </details>
   {q.booked&&<p className="notice" role="status">Appointment booked successfully. Reference: <strong>{q.booked}</strong></p>}
   <section className="grid"><div className="card"><div className="label">Upcoming appointments</div><div className="stat">{upcoming}</div><div className="label">Scheduled from today</div></div><div className="card"><div className="label">Active services</div><div className="stat">{(services||[]).filter((s:any)=>s.is_active).length}</div><div className="label">Treatments offered</div></div><div className="card"><div className="label">Clinic timezone</div><div className="stat" style={{fontSize:20,marginTop:17}}>{business.timezone}</div><div className="label">Appointment scheduling zone</div></div></section>
