@@ -1,5 +1,4 @@
 "use server";
-import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -18,6 +17,17 @@ function parseTime12(value: string): string | null {
   let hour = Number(match[1]) % 12;
   if (match[3].toUpperCase() === "PM") hour += 12;
   return `${String(hour).padStart(2, "0")}:${match[2]}`;
+}
+function localDateInTimeZone(value: Date, timeZone: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(value).map((part) => [part.type, part.value])
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 function bookingError(message: string): never {
   redirect("/dashboard?error=" + encodeURIComponent(message));
@@ -127,12 +137,7 @@ export async function createAppointment(formData: FormData) {
   if (!startsAt) bookingError("That date or time is invalid for your clinic timezone.");
   if (new Date(startsAt).getTime() <= Date.now()) bookingError("Choose a future appointment time.");
 
-  const localToday = new Intl.DateTimeFormat("en-CA", {
-    timeZone: business.timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
+  const localToday = localDateInTimeZone(new Date(), business.timezone);
   const [year, month, day] = date.split("-").map(Number);
   const dateCheck = new Date(Date.UTC(year, month - 1, day));
   if (
@@ -149,12 +154,7 @@ export async function createAppointment(formData: FormData) {
     bookingError("Appointments can be booked up to 365 days in advance.");
   }
 
-  const localToday = new Intl.DateTimeFormat("en-CA", {
-    timeZone: business.timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
+  const localToday = localDateInTimeZone(new Date(), business.timezone);
   const maxDate = new Date(Date.UTC(year, month - 1, day));
   maxDate.setUTCDate(maxDate.getUTCDate() + 365);
   const maxDateValue = [maxDate.getUTCFullYear(), String(maxDate.getUTCMonth() + 1).padStart(2, "0"), String(maxDate.getUTCDate()).padStart(2, "0")].join("-");
