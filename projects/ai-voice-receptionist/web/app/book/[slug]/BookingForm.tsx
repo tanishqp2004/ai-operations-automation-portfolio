@@ -154,7 +154,7 @@ export default function BookingForm({
         <label htmlFor="patient-email">Email address <span className="muted">(optional)</span></label>
         <input id="patient-email" name="email" type="email" autoComplete="email" maxLength={254} placeholder="you@example.com" />
       </div>
-      <p className="muted">No account or payment is required. Appointment times are shown in the clinic's local timezone. Online bookings are open up to 30 days ahead.</p>
+      <p className="muted">No account or payment is required. Appointment times are shown in the clinic&apos;s local timezone. Online bookings are open up to 30 days ahead.</p>
       <SubmitButton disabled={loading || !startsAt || !slots.some((slot) => slot.start === startsAt)} />
     </form>
   );
