@@ -2,9 +2,10 @@
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
-import { addService, createBusiness, saveHours, updateAppointment, selectActiveBusiness } from "./actions";
+import { addService, createBusiness, saveHours, updateAppointment, selectActiveBusiness, deleteBusiness } from "./actions";
 import AppointmentForm from "./AppointmentForm";
 import CreateClinicForm from "./CreateClinicForm";
+import DeleteClinicForm from "./DeleteClinicForm";
 import { signOut } from "@/app/auth/actions";
 import { cookies } from "next/headers";
 
@@ -16,7 +17,7 @@ function formatTime12(value?: string | null, fallback = "09:00 AM") {
   if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !minute) return fallback;
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
 }
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{error?:string;booked?:string}> }) {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{error?:string;booked?:string;deleted?:string}> }) {
   const q = await searchParams;
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
@@ -50,7 +51,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     : { data: [], error: null };
   if (availableClinicsError) throw new Error(availableClinicsError.message);
   const [{data:business},{data:services},{data:hours},{data:appointments},{count:upcomingCount}] = await Promise.all([
-    supabase.from("businesses").select("id,name,timezone,phone,email,address").eq("id",businessId).single(),
+    supabase.from("businesses").select("id,name,timezone,phone,email,address,created_by").eq("id",businessId).single(),
     supabase.from("services").select("id,name,duration_minutes,price,is_active").eq("business_id",businessId).order("name"),
     supabase.from("business_hours").select("day_of_week,opens_at,closes_at,is_closed").eq("business_id",businessId).order("day_of_week"),
     supabase.from("appointments").select("id,booking_reference,starts_at,ends_at,status,customers(full_name,phone),services(name)").eq("business_id",businessId).order("starts_at",{ascending:false}).limit(20),
@@ -73,5 +74,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   <section className="section card"><div className="sectionhead"><h2>Book an appointment</h2><span className="label">Staff booking</span></div><p className="muted">Appointments use {business.timezone}. Bookings are checked against clinic hours and existing appointments.</p>{(services||[]).filter((s:any)=>s.is_active).length===0?<p className="notice">Add an active service before creating an appointment.</p>:<AppointmentForm services={(services||[]).filter((s:any)=>s.is_active)} today={today} timezone={business.timezone} idempotencyKey={randomBytes(16).toString("hex")}/ >}</section>
   <section className="grid section" style={{gridTemplateColumns:"1fr 1fr"}}><div className="card"><div className="sectionhead"><h2>Services</h2><span className="label">{services?.length||0} total</span></div>{(services||[]).map((s:any)=><div key={s.id} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid var(--line)"}}><div><strong>{s.name}</strong><div className="muted">{s.duration_minutes} min · {s.price==null?"Price on request":"₹"+Number(s.price).toLocaleString("en-IN")}</div></div><span className="pill">{s.is_active?"Active":"Inactive"}</span></div>)}{services?.length===0&&<p className="muted">Add your first service below.</p>}<form action={addService} style={{marginTop:14}}><div className="field"><label>Service name</label><input name="name" placeholder="Dental consultation" required/></div><div className="formgrid"><div className="field"><label>Duration (minutes)</label><input name="duration" type="number" min="5" max="480" defaultValue="30" required/></div><div className="field"><label>Price (₹, optional)</label><input name="price" type="number" min="0" step="1" placeholder="Leave blank"/></div></div><button className="btn">Add service</button></form></div>
   <div className="card"><div className="sectionhead"><h2>Business hours</h2><span className="label">Weekly schedule</span></div><form action={saveHours}><div>{dayNames.map((day,i)=>{const h=(hours||[]).find((x:any)=>x.day_of_week===i);return <div className="dayrow" key={day}><strong className="dayname">{day}</strong>{!h?.is_closed&&<><label className="timefield"><span>Opens</span><input type="text" inputMode="text" name={"opens_"+i} placeholder="09:00 AM" pattern="[0-9]{1,2}:[0-5][0-9] ?[AaPp][Mm]" title="Use 12-hour time, e.g. 09:00 AM" defaultValue={formatTime12(h?.opens_at,"09:00 AM")}/></label><label className="timefield"><span>Closes</span><input type="text" inputMode="text" name={"closes_"+i} placeholder="06:00 PM" pattern="[0-9]{1,2}:[0-5][0-9] ?[AaPp][Mm]" title="Use 12-hour time, e.g. 06:00 PM" defaultValue={formatTime12(h?.closes_at,"06:00 PM")}/></label></>}<label className="closed-toggle"><input type="checkbox" name={"closed_"+i} defaultChecked={h?.is_closed||false}/> Closed</label></div>})}</div><p className="muted">Times use {business.timezone}. Closed days are excluded from availability.</p><button className="btn secondary">Save hours</button></form></div></section>
+  {membership.role === "owner" && business.created_by === userId && <section className="section card" style={{border:"1px solid #f0b4b4",background:"rgba(180,35,24,0.035)"}}>
+    <div className="sectionhead"><h2 style={{color:"#b42318"}}>Danger zone</h2></div>
+    <p className="muted">Permanently delete <strong>{business.name}</strong> and only its own data, including appointments, patient records, services, business hours, integrations, call logs, audit history and notification records. This cannot be undone. Your other clinic workspaces and their data are not affected.</p>
+    <DeleteClinicForm action={deleteBusiness} businessId={business.id} businessName={business.name}/>
+  </section>}
   <footer className="muted" style={{textAlign:"center",marginTop:36}}>ClinicDesk early access · Built for independent dental clinics · No diagnosis or treatment advice</footer></main>;
 }
