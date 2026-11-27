@@ -50,6 +50,62 @@ export async function selectActiveBusiness(formData: FormData) {
   revalidatePath("/dashboard");
   redirect("/dashboard");
 }
+export async function deleteBusiness(formData: FormData) {
+  const { supabase, userId, membership } = await currentBusiness();
+  const businessId = String(formData.get("business_id") || "");
+  const confirmationName = String(formData.get("confirmation_name") || "").trim();
+
+  // The submitted clinic must be the currently selected, verified workspace.
+  if (!membership || membership.role !== "owner" || membership.business_id !== businessId) {
+    redirect("/dashboard?error=Only+the+owner+of+the+selected+clinic+can+delete+it");
+  }
+
+  const { data: business, error: businessError } = await supabase
+    .from("businesses")
+    .select("id,name,created_by")
+    .eq("id", businessId)
+    .maybeSingle();
+
+  if (businessError || !business || business.created_by !== userId || business.name !== confirmationName) {
+    redirect("/dashboard?error=Clinic+name+did+not+match+or+you+are+not+the+creator");
+  }
+
+  const { error: deleteError } = await supabase.rpc("delete_business_for_current_user", {
+    p_business_id: businessId,
+    p_confirmation_name: confirmationName
+  });
+
+  if (deleteError) {
+    redirect("/dashboard?error=Clinic+could+not+be+deleted.+Please+try+again");
+  }
+
+  const cookieStore = await cookies();
+  if (cookieStore.get(ACTIVE_BUSINESS_COOKIE)?.value === businessId) {
+    cookieStore.delete(ACTIVE_BUSINESS_COOKIE);
+  }
+
+  // Keep the user in their remaining clinic if only one remains. If several
+  // remain, let the existing workspace chooser ask which one to open.
+  const { data: remainingMemberships, error: membershipsError } = await supabase
+    .from("business_memberships")
+    .select("business_id")
+    .eq("user_id", userId);
+
+  if (membershipsError) throw new Error(membershipsError.message);
+  if (remainingMemberships?.length === 1) {
+    cookieStore.set(ACTIVE_BUSINESS_COOKIE, remainingMemberships[0].business_id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30
+    });
+  }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard?deleted=1");
+}
+
 function parseTime12(value: string): string | null {
   const match = /^(1[0-2]|0?[1-9]):([0-5][0-9])\s*(AM|PM)$/i.exec(value.trim());
   if (!match) return null;
