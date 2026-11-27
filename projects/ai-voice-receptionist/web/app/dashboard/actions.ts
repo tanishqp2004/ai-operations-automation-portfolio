@@ -1,23 +1,128 @@
 "use server";
-import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+
+const ACTIVE_BUSINESS_COOKIE = "clinicdesk_active_business";
 
 async function currentBusiness() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims) redirect("/login");
-  const { data: membership, error } = await supabase.from("business_memberships").select("business_id, role").limit(1).maybeSingle();
+  const userId = String(claims.claims.sub);
+  const [{ data: memberships, error }, cookieStore] = await Promise.all([
+    supabase.from("business_memberships").select("business_id, role").eq("user_id", userId),
+    cookies()
+  ]);
   if (error) throw new Error(error.message);
-  return { supabase, userId: String(claims.claims.sub), membership };
+  const activeBusinessId = cookieStore.get(ACTIVE_BUSINESS_COOKIE)?.value;
+  let membership = activeBusinessId
+    ? (memberships || []).find((item) => item.business_id === activeBusinessId) || null
+    : null;
+  if (!membership && (memberships || []).length === 1) membership = memberships![0];
+  return { supabase, userId, membership, membershipCount: memberships?.length || 0 };
 }
+
+export async function selectActiveBusiness(formData: FormData) {
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  if (!claims?.claims) redirect("/login");
+  const userId = String(claims.claims.sub);
+  const businessId = String(formData.get("business_id") || "");
+  if (!businessId || businessId.length > 100) redirect("/dashboard?error=Choose+a+valid+clinic");
+  const { data: membership, error } = await supabase
+    .from("business_memberships")
+    .select("business_id")
+    .eq("user_id", userId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (error || !membership) redirect("/dashboard?error=You+do+not+have+access+to+that+clinic");
+  const cookieStore = await cookies();
+  cookieStore.set(ACTIVE_BUSINESS_COOKIE, membership.business_id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30
+  });
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+export async function deleteBusiness(formData: FormData) {
+  const { supabase, userId, membership } = await currentBusiness();
+  const businessId = String(formData.get("business_id") || "");
+  const confirmationName = String(formData.get("confirmation_name") || "").trim();
+
+  // The submitted clinic must be the currently selected, verified workspace.
+  if (!membership || membership.role !== "owner" || membership.business_id !== businessId) {
+    redirect("/dashboard?error=Only+the+owner+of+the+selected+clinic+can+delete+it");
+  }
+
+  const { data: business, error: businessError } = await supabase
+    .from("businesses")
+    .select("id,name,created_by")
+    .eq("id", businessId)
+    .maybeSingle();
+
+  if (businessError || !business || business.created_by !== userId || business.name !== confirmationName) {
+    redirect("/dashboard?error=Clinic+name+did+not+match+or+you+are+not+the+creator");
+  }
+
+  const { error: deleteError } = await supabase.rpc("delete_business_for_current_user", {
+    p_business_id: businessId,
+    p_confirmation_name: confirmationName
+  });
+
+  if (deleteError) {
+    redirect("/dashboard?error=Clinic+could+not+be+deleted.+Please+try+again");
+  }
+
+  const cookieStore = await cookies();
+  if (cookieStore.get(ACTIVE_BUSINESS_COOKIE)?.value === businessId) {
+    cookieStore.delete(ACTIVE_BUSINESS_COOKIE);
+  }
+
+  // Keep the user in their remaining clinic if only one remains. If several
+  // remain, let the existing workspace chooser ask which one to open.
+  const { data: remainingMemberships, error: membershipsError } = await supabase
+    .from("business_memberships")
+    .select("business_id")
+    .eq("user_id", userId);
+
+  if (membershipsError) throw new Error(membershipsError.message);
+  if (remainingMemberships?.length === 1) {
+    cookieStore.set(ACTIVE_BUSINESS_COOKIE, remainingMemberships[0].business_id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30
+    });
+  }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard?deleted=1");
+}
+
 function parseTime12(value: string): string | null {
   const match = /^(1[0-2]|0?[1-9]):([0-5][0-9])\s*(AM|PM)$/i.exec(value.trim());
   if (!match) return null;
   let hour = Number(match[1]) % 12;
   if (match[3].toUpperCase() === "PM") hour += 12;
   return `${String(hour).padStart(2, "0")}:${match[2]}`;
+}
+function localDateInTimeZone(value: Date, timeZone: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(value).map((part) => [part.type, part.value])
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 function bookingError(message: string): never {
   redirect("/dashboard?error=" + encodeURIComponent(message));
@@ -49,15 +154,41 @@ function localDateTimeToIso(dateValue: string, timeValue: string, timeZone: stri
   }
 }
 export async function createBusiness(formData: FormData) {
-  const { supabase, membership } = await currentBusiness();
-  if (membership) redirect("/dashboard");
+  const { supabase } = await currentBusiness();
   const name = String(formData.get("name") || "").trim();
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50);
+  const requestKey = String(formData.get("creation_request_key") || "");
+  const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,46);
+  const slug = baseSlug && /^[a-f0-9]{32}$/i.test(requestKey) ? `${baseSlug}-${requestKey.slice(0,12).toLowerCase()}` : "";
   const timezone = String(formData.get("timezone") || "Asia/Kolkata");
-  if (name.length < 2 || !slug) redirect("/dashboard?error=Enter+a+valid+clinic+name");
-  const { error } = await supabase.rpc("create_business_for_current_user", { p_name: name, p_slug: slug, p_timezone: timezone });
-  if (error) redirect("/dashboard?error=" + encodeURIComponent(error.message));
-  revalidatePath("/dashboard"); redirect("/dashboard");
+  if (name.length < 2 || name.length > 120 || !slug) redirect("/dashboard?error=Enter+a+valid+clinic+name");
+  const { data, error } = await supabase.rpc("create_business_for_current_user", { p_name: name, p_slug: slug, p_timezone: timezone });
+  let createdBusiness = data as { business_id?: string } | null;
+  if (error) {
+    // A retry with the same request key has the same unique slug. Reuse the
+    // clinic created by the first request instead of creating another one.
+    if (error.code === "23505" || /duplicate key|already exists/i.test(error.message)) {
+      const { data: existing } = await supabase.from("businesses").select("id").eq("slug", slug).maybeSingle();
+      if (existing?.id) {
+        const { data: existingMembership } = await supabase.from("business_memberships")
+          .select("business_id").eq("user_id", (await supabase.auth.getClaims()).data?.claims?.sub || "")
+          .eq("business_id", existing.id).maybeSingle();
+        if (existingMembership) createdBusiness = { business_id: existingMembership.business_id };
+      }
+    }
+  }
+  if (!createdBusiness?.business_id) {
+    redirect("/dashboard?error=" + encodeURIComponent(error?.message || "The clinic could not be created. Please try again."));
+  }
+  const cookieStore = await cookies();
+  cookieStore.set(ACTIVE_BUSINESS_COOKIE, createdBusiness.business_id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30
+  });
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
 }
 export async function addService(formData: FormData) {
   const { supabase, membership } = await currentBusiness();
@@ -88,10 +219,12 @@ export async function saveHours(formData: FormData) {
 }
 export async function createAppointment(formData: FormData) {
   const { supabase, membership } = await currentBusiness();
-  if (!membership || !["owner","admin","staff"].includes(membership.role)) bookingError("You do not have permission to create appointments.");
+  if (!membership || !["owner", "admin", "staff"].includes(membership.role)) {
+    bookingError("You do not have permission to create appointments.");
+  }
+
   const fullName = String(formData.get("full_name") || "").trim();
-  const phoneInput = String(formData.get("phone") || "").trim();
-  const phone = phoneInput.replace(/\D/g, "");
+  const phone = String(formData.get("phone") || "").replace(/\D/g, "");
   const emailRaw = String(formData.get("email") || "").trim();
   const email = emailRaw || null;
   const serviceId = String(formData.get("service_id") || "");
@@ -99,54 +232,85 @@ export async function createAppointment(formData: FormData) {
   const timeInput = String(formData.get("time") || "");
   const time = parseTime12(timeInput) || "";
   const notes = String(formData.get("notes") || "").trim().slice(0, 1000) || null;
-  if (fullName.length < 2 || fullName.length > 120 || !/^\d{10}$/.test(phone) || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) bookingError("Enter a valid patient name and a 10-digit phone number. Email is optional.");
+  const idempotencyKey = String(formData.get("idempotency_key") || "");
+
+  if (
+    fullName.length < 2 ||
+    fullName.length > 120 ||
+    !/^\d{10}$/.test(phone) ||
+    (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) ||
+    idempotencyKey.length < 8 ||
+    idempotencyKey.length > 128
+  ) {
+    bookingError("Enter a valid patient name, 10-digit phone number and email (if supplied).");
+  }
+  if (!time) bookingError("Choose a valid appointment time.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) bookingError("Choose a valid appointment date.");
+
   const [{ data: business }, { data: service }, { data: hours }] = await Promise.all([
     supabase.from("businesses").select("timezone").eq("id", membership.business_id).single(),
-    supabase.from("services").select("id,name,duration_minutes").eq("id", serviceId).eq("business_id", membership.business_id).eq("is_active", true).single(),
+    supabase.from("services").select("id,duration_minutes").eq("id", serviceId).eq("business_id", membership.business_id).eq("is_active", true).single(),
     supabase.from("business_hours").select("day_of_week,opens_at,closes_at,is_closed").eq("business_id", membership.business_id)
   ]);
   if (!business || !service) bookingError("Choose an active service from your clinic.");
+
   const startsAt = localDateTimeToIso(date, time, business.timezone);
-  if (!time) bookingError("Enter the appointment time in 12-hour format, e.g. 10:30 AM.");
   if (!startsAt) bookingError("That date or time is invalid for your clinic timezone.");
-  const startDate = new Date(startsAt);
-  if (startDate.getTime() <= Date.now()) bookingError("Choose a future appointment time.");
+  if (new Date(startsAt).getTime() <= Date.now()) bookingError("Choose a future appointment time.");
+
+  const localToday = localDateInTimeZone(new Date(), business.timezone);
   const [year, month, day] = date.split("-").map(Number);
-  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const dateCheck = new Date(Date.UTC(year, month - 1, day));
+  if (
+    dateCheck.getUTCFullYear() !== year ||
+    dateCheck.getUTCMonth() + 1 !== month ||
+    dateCheck.getUTCDate() !== day
+  ) {
+    bookingError("Choose a valid appointment date.");
+  }
+  const [todayYear, todayMonth, todayDay] = localToday.split("-").map(Number);
+  const maxDate = new Date(Date.UTC(todayYear, todayMonth - 1, todayDay));
+  maxDate.setUTCDate(maxDate.getUTCDate() + 365);
+  const maxDateValue = [maxDate.getUTCFullYear(), String(maxDate.getUTCMonth() + 1).padStart(2, "0"), String(maxDate.getUTCDate()).padStart(2, "0")].join("-");
+  if (date < localToday || date > maxDateValue) {
+    bookingError("Appointments can be booked up to 365 days in advance.");
+  }
+
+  const dayOfWeek = dateCheck.getUTCDay();
   const dayHours = (hours || []).find((item) => item.day_of_week === dayOfWeek);
-  if (!dayHours || dayHours.is_closed || !dayHours.opens_at || !dayHours.closes_at) bookingError("The clinic is closed on the selected day.");
+  if (!dayHours || dayHours.is_closed || !dayHours.opens_at || !dayHours.closes_at) {
+    bookingError("The clinic is closed on the selected day.");
+  }
   const [openHour, openMinute] = dayHours.opens_at.slice(0, 5).split(":").map(Number);
-  const [closeHour, closeMinute] = dayHours.closes_at.slice(0, 5).split(":").map(Number);
+  const openingMinutes = openHour * 60 + openMinute;
   const [startHour, startMinute] = time.split(":").map(Number);
   const startMinutes = startHour * 60 + startMinute;
-  const endMinutes = startMinutes + service.duration_minutes;
-  if (startMinutes < openHour * 60 + openMinute || endMinutes > closeHour * 60 + closeMinute) bookingError("The appointment must fit inside the clinic's opening hours.");
-  const endsAt = new Date(startDate.getTime() + service.duration_minutes * 60_000).toISOString();
-  const { data: overlap, error: overlapError } = await supabase.from("appointments").select("id").eq("business_id", membership.business_id).eq("resource_key", "main-calendar").in("status", ["pending", "confirmed"]).lt("starts_at", endsAt).gt("ends_at", startsAt).limit(1);
-  if (overlapError) bookingError("Could not check availability. Please try again.");
-  if (overlap?.length) bookingError("That time is already booked. Choose another time.");
-  let customerId: string;
-  const { data: existingCustomer, error: customerLookupError } = await supabase.from("customers").select("id").eq("business_id", membership.business_id).eq("phone", phone).maybeSingle();
-  if (customerLookupError) bookingError("Could not look up the patient record.");
-  if (existingCustomer) {
-    customerId = existingCustomer.id;
-    const { error } = await supabase.from("customers").update({ full_name: fullName, email }).eq("id", customerId).eq("business_id", membership.business_id);
-    if (error) bookingError("Could not update the patient record.");
-  } else {
-    const { data: customer, error } = await supabase.from("customers").insert({ business_id: membership.business_id, full_name: fullName, phone, email }).select("id").single();
-    if (error || !customer) bookingError("Could not create the patient record. Check whether the phone number is already in use.");
-    customerId = customer.id;
+  if ((startMinutes - openingMinutes) % 15 !== 0) {
+    bookingError("Choose one of the available 15-minute appointment slots.");
   }
-  const bookingReference = "CD-" + randomBytes(4).toString("hex").toUpperCase();
-  const { error: appointmentError } = await supabase.from("appointments").insert({
-    business_id: membership.business_id, customer_id: customerId, service_id: service.id,
-    starts_at: startsAt, ends_at: endsAt, status: "confirmed", booking_source: "staff",
-    resource_key: "main-calendar", booking_reference: bookingReference, notes
+
+  const { data, error } = await supabase.rpc("create_booking", {
+    p_business_id: membership.business_id,
+    p_service_id: service.id,
+    p_customer_name: fullName,
+    p_customer_phone: phone,
+    p_starts_at: startsAt,
+    p_customer_email: email,
+    p_notes: notes,
+    p_booking_source: "staff",
+    p_resource_key: "main-calendar",
+    p_idempotency_key: idempotencyKey
   });
-  if (appointmentError) {
-    if (appointmentError.code === "23P01" || appointmentError.code === "23505") bookingError("That slot was just booked. Choose another time.");
+
+  if (error || !data || typeof data !== "object" || !("booking_reference" in data)) {
+    const message = error?.message || "The appointment could not be saved. Please try again.";
+    if (/slot has just been booked|conflicting booking|outside business hours|future|active service|365 days/i.test(message)) {
+      bookingError(message);
+    }
     bookingError("The appointment could not be saved. Please try again.");
   }
+
+  const bookingReference = String((data as { booking_reference: string }).booking_reference);
   revalidatePath("/dashboard");
   redirect("/dashboard?booked=" + encodeURIComponent(bookingReference));
 }
@@ -180,6 +344,14 @@ export async function getAvailableSlots(date: string, serviceId: string): Promis
   const dateCheck = new Date(Date.UTC(year, month - 1, day));
   if (dateCheck.getUTCFullYear() !== year || dateCheck.getUTCMonth() + 1 !== month || dateCheck.getUTCDate() !== day) {
     return { slots: [], message: "Choose a valid date." };
+  }
+  const localToday = localDateInTimeZone(new Date(), business.timezone);
+  const [todayYear, todayMonth, todayDay] = localToday.split("-").map(Number);
+  const maxDate = new Date(Date.UTC(todayYear, todayMonth - 1, todayDay));
+  maxDate.setUTCDate(maxDate.getUTCDate() + 365);
+  const maxDateValue = [maxDate.getUTCFullYear(), String(maxDate.getUTCMonth() + 1).padStart(2, "0"), String(maxDate.getUTCDate()).padStart(2, "0")].join("-");
+  if (date < localToday || date > maxDateValue) {
+    return { slots: [], message: "Choose a date within the next 365 days." };
   }
   const dayOfWeek = dateCheck.getUTCDay();
   const dayHours = (hours || []).find((item) => item.day_of_week === dayOfWeek);
