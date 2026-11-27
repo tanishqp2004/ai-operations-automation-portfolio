@@ -64,6 +64,7 @@ declare
   v_duration integer;
   v_open timestamptz;
   v_close timestamptz;
+  v_close_time time;
   v_open_time time;
 begin
   if p_slug is null or p_service_id is null or p_local_date is null then
@@ -87,18 +88,18 @@ begin
   end if;
 
   select h.opens_at, h.closes_at
-    into v_open_time, v_close
+    into v_open_time, v_close_time
   from public.business_hours h
   where h.business_id = v_business_id
     and h.day_of_week = extract(dow from p_local_date)::smallint
     and not h.is_closed;
 
-  if not found or v_open_time is null or v_close is null then
+  if not found or v_open_time is null or v_close_time is null then
     return;
   end if;
 
   v_open := (p_local_date + v_open_time) at time zone v_timezone;
-  v_close := (p_local_date + v_close) at time zone v_timezone;
+  v_close := (p_local_date + v_close_time) at time zone v_timezone;
 
   return query
   select candidate.slot_start,
