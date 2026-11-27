@@ -18,7 +18,6 @@ begin
 
   select jsonb_build_object(
     'business', jsonb_build_object(
-      'id', b.id,
       'name', b.name,
       'slug', b.slug,
       'phone', b.phone,
