@@ -1,4 +1,7 @@
-create or replace function public.delete_business_for_current_user(
+-- Internal SECURITY DEFINER implementation lives in the non-exposed private
+-- schema. The public RPC is SECURITY INVOKER and only forwards authenticated
+-- requests to this tightly scoped operation.
+create or replace function private.delete_business_for_current_user(
   p_business_id uuid,
   p_confirmation_name text
 )
@@ -19,8 +22,6 @@ begin
     raise exception 'Clinic confirmation is required';
   end if;
 
-  -- Only the authenticated creator who still has the owner role can delete
-  -- this exact clinic. Lock the parent row while validating and deleting.
   select b.name
     into v_business_name
   from public.businesses as b
@@ -40,14 +41,11 @@ begin
     raise exception 'Clinic name confirmation does not match';
   end if;
 
-  -- Appointments have RESTRICT references to clinic-scoped customers and
-  -- services, so remove this clinic's appointments before parent cascades.
+  -- Appointments restrict deletion of clinic-scoped customers and services.
   delete from public.appointments
   where business_id = p_business_id;
 
-  -- All remaining clinic-owned rows cascade from this one parent delete.
-  -- The business_id predicate and creator/owner check prevent cross-clinic
-  -- deletion. PostgreSQL runs this function call in one transaction.
+  -- Remaining records are removed by business_id foreign-key cascades.
   delete from public.businesses
   where id = p_business_id
     and created_by = v_user_id;
@@ -57,6 +55,25 @@ begin
   end if;
 
   return jsonb_build_object('success', true, 'business_id', p_business_id);
+end;
+$function$;
+
+revoke all on function private.delete_business_for_current_user(uuid, text) from public;
+revoke all on function private.delete_business_for_current_user(uuid, text) from anon;
+grant usage on schema private to authenticated;
+grant execute on function private.delete_business_for_current_user(uuid, text) to authenticated;
+
+create or replace function public.delete_business_for_current_user(
+  p_business_id uuid,
+  p_confirmation_name text
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $function$
+begin
+  return private.delete_business_for_current_user(p_business_id, p_confirmation_name);
 end;
 $function$;
 
