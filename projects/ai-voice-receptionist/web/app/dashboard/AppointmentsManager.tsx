@@ -43,7 +43,7 @@ export default function AppointmentsManager({
     <section className="section card">
       <div className="sectionhead">
         <h2>Appointments</h2>
-        <span className="label">{view === "upcoming" ? "Next 20 scheduled" : "Last 20 completed dates"}</span>
+        <span className="label">{view === "upcoming" ? "Next 20 scheduled" : "Most recent past 20"}</span>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
         <button type="button" className={view === "upcoming" ? "btn" : "btn secondary"} onClick={() => {setView("upcoming");setStatus("all");}}>Upcoming ({upcoming.length})</button>
