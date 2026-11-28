@@ -114,7 +114,7 @@ export default async function PublicBookingPage({
             <div className="booking-hero-copy">
               <div className="booking-kicker"><span className="booking-kicker-dot" /> PATIENT APPOINTMENTS</div>
               <h1 className="booking-title">A healthier smile starts with <em>a simple visit.</em></h1>
-              <p className="booking-lede">Welcome to <strong>{booking.business.name}</strong>. Explore the clinic's available dental services, find a time that suits you, and book your visit online.</p>
+              <p className="booking-lede">Welcome to <strong>{booking.business.name}</strong>. Explore the clinic&apos;s available dental services, find a time that suits you, and book your visit online.</p>
               <div className="booking-hero-points">
                 <span><b>01</b> Choose your treatment</span>
                 <span><b>02</b> Pick a convenient time</span>
@@ -210,7 +210,7 @@ export default async function PublicBookingPage({
                 <h2>Before you book.</h2>
                 <div className="booking-faq-item"><strong>Do I need to pay online?</strong><p>No. You can request an appointment without an online payment.</p></div>
                 <div className="booking-faq-item"><strong>When is my appointment confirmed?</strong><p>Your booking is confirmed instantly on this page once the request is accepted.</p></div>
-                <div className="booking-faq-item"><strong>Can I book for a later date?</strong><p>Online availability is shown up to 30 days ahead and updates based on the clinic's schedule.</p></div>
+                <div className="booking-faq-item"><strong>Can I book for a later date?</strong><p>Online availability is shown up to 30 days ahead and updates based on the clinic&apos;s schedule.</p></div>
               </section>
             </div>
 
@@ -221,7 +221,7 @@ export default async function PublicBookingPage({
                   <span className="booking-live-pill"><i /> LIVE SLOTS</span>
                 </div>
                 <h2>Make an appointment.</h2>
-                <p className="sub">A few details and you're all set.</p>
+                <p className="sub">A few details and you&apos;re all set.</p>
                 {query.error && <p className="error" role="alert">{query.error}</p>}
                 {booking.services.length ? (
                   <BookingForm
@@ -240,7 +240,7 @@ export default async function PublicBookingPage({
               </div>
               <div className="booking-help-card">
                 <span className="booking-help-icon">✉</span>
-                <div><strong>Need help before booking?</strong><p>{booking.business.phone ? <>Call the clinic at <a href={`tel:${booking.business.phone}`}>{booking.business.phone}</a>.</> : "Please use the clinic's usual contact channel for questions before booking."}</p></div>
+                <div><strong>Need help before booking?</strong><p>{booking.business.phone ? <>Call the clinic at <a href={`tel:${booking.business.phone}`}>{booking.business.phone}</a>.</> : "Please use the clinic&apos;s usual contact channel for questions before booking."}</p></div>
               </div>
             </aside>
           </div>
