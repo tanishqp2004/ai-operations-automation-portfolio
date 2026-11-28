@@ -74,7 +74,7 @@ export default function BookingForm({
       window.removeEventListener("focus", refreshAvailability);
       document.removeEventListener("visibilitychange", refreshAvailability);
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     let active = true;
