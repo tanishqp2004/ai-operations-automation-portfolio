@@ -55,16 +55,27 @@ export async function createPublicBooking(slug: string, formData: FormData): Pro
   const startsAt = String(formData.get("starts_at") || "");
   const idempotencyKey = String(formData.get("idempotency_key") || "");
 
-  if (
-    !/^[0-9a-f-]{36}$/i.test(serviceId) ||
-    fullName.length < 2 ||
-    fullName.length > 120 ||
-    !/^[6-9]\d{9}$/.test(phoneDigits) ||
-    (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) ||
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(startsAt) ||
-    !/^[0-9a-f-]{36}$/i.test(idempotencyKey)
-  ) {
-    redirect(`/book/${slug}?error=${encodeURIComponent("Please enter a valid 10-digit Indian mobile number and check the other booking details.")}`);
+  const validStartsAt =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(startsAt) &&
+    Number.isFinite(Date.parse(startsAt));
+
+  let validationMessage = "";
+  if (!/^[0-9a-f-]{36}$/i.test(serviceId)) {
+    validationMessage = "Please choose a service.";
+  } else if (fullName.length < 2 || fullName.length > 120) {
+    validationMessage = "Please enter your name (2–120 characters).";
+  } else if (!/^[6-9]\d{9}$/.test(phoneDigits)) {
+    validationMessage = "Please enter a valid 10-digit Indian mobile number.";
+  } else if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    validationMessage = "Please enter a valid email address.";
+  } else if (!validStartsAt) {
+    validationMessage = "Please select an available appointment time.";
+  } else if (!/^[0-9a-f-]{36}$/i.test(idempotencyKey)) {
+    validationMessage = "Your booking session expired. Refresh the page and try again.";
+  }
+
+  if (validationMessage) {
+    redirect(`/book/${slug}?error=${encodeURIComponent(validationMessage)}`);
   }
 
   const supabase = await createClient();
