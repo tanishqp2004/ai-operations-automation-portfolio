@@ -36,6 +36,18 @@ begin
       )
       from public.services s
       where s.business_id = b.id and s.is_active
+    ), '[]'::jsonb),
+    'hours', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'day_of_week', h.day_of_week,
+          'opens_at', h.opens_at,
+          'closes_at', h.closes_at,
+          'is_closed', h.is_closed
+        ) order by h.day_of_week
+      )
+      from public.business_hours h
+      where h.business_id = b.id
     ), '[]'::jsonb)
   )
   into v_result
