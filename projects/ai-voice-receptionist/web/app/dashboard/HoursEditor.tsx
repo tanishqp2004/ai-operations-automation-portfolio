@@ -66,7 +66,7 @@ export default function HoursEditor({
           <p className="muted">Times use {timezone}. These hours control patient booking availability.</p>
         </div>
       ) : (
-        <form action={action}>
+        <form action={async (formData) => { await action(formData); setEditing(false); }}>
           <div>
             {days.map((day, index) => {
               const hour = hours.find((item) => item.day_of_week === index);
