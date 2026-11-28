@@ -166,7 +166,8 @@ begin
   end if;
 
   v_phone := regexp_replace(coalesce(p_customer_phone, ''), '[^0-9+]', '', 'g');
-  if v_phone !~ '^\+91[6-9][0-9]{9}
+  if v_phone !~ '^\\+91[6-9][0-9]{9}$' then
+    raise exception 'Enter a valid 10-digit Indian mobile number';
   end if;
 
   if p_customer_email is not null and btrim(p_customer_email) <> ''
