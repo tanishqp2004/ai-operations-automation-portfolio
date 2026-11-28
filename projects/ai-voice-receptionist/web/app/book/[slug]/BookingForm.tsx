@@ -157,7 +157,7 @@ export default function BookingForm({
               inputMode="numeric"
               autoComplete="tel-national"
               value={phoneDigits}
-              onChange={(event) => setPhoneDigits(event.target.value.replace(/\\D/g, "").slice(0, 10))}
+              onChange={(event) => setPhoneDigits(event.target.value.replace(/\D/g, "").slice(0, 10))}
               minLength={10}
               maxLength={10}
               pattern="[6-9][0-9]{9}"
