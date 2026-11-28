@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createPublicBooking, getPublicAvailableSlots } from "./actions";
 
@@ -52,7 +52,26 @@ export default function BookingForm({
   const [slots, setSlots] = useState<Slot[]>([]);
   const [message, setMessage] = useState("Select a service and date to see available times.");
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const lastRefreshAt = useRef(0);
   const action = createPublicBooking.bind(null, slug);
+
+  useEffect(() => {
+    const refreshAvailability = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastRefreshAt.current < 1500) return;
+      lastRefreshAt.current = now;
+      setRefreshKey((current) => current + 1);
+    };
+
+    window.addEventListener("focus", refreshAvailability);
+    document.addEventListener("visibilitychange", refreshAvailability);
+    return () => {
+      window.removeEventListener("focus", refreshAvailability);
+      document.removeEventListener("visibilitychange", refreshAvailability);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -80,7 +99,7 @@ export default function BookingForm({
       });
 
     return () => { active = false; };
-  }, [slug, serviceId, date]);
+  }, [slug, serviceId, date, refreshKey]);
 
   return (
     <form action={action}>
