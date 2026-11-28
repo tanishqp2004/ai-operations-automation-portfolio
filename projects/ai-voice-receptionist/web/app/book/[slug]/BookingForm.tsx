@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 import { createPublicBooking, getPublicAvailableSlots } from "./actions";
 
 type Service = {
@@ -45,6 +46,7 @@ export default function BookingForm({
   maxDate: string;
   idempotencyKey: string;
 }) {
+  const router = useRouter();
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState("");
   const [startsAt, setStartsAt] = useState("");
@@ -62,6 +64,7 @@ export default function BookingForm({
       const now = Date.now();
       if (now - lastRefreshAt.current < 1500) return;
       lastRefreshAt.current = now;
+      router.refresh();
       setRefreshKey((current) => current + 1);
     };
 
