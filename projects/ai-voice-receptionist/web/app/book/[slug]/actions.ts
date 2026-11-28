@@ -48,7 +48,7 @@ export async function createPublicBooking(slug: string, formData: FormData): Pro
 
   const serviceId = String(formData.get("service_id") || "");
   const fullName = String(formData.get("full_name") || "").trim();
-  const phoneDigits = String(formData.get("phone") || "").replace(/\\D/g, "");
+  const phoneDigits = String(formData.get("phone") || "").replace(/\D/g, "");
   const phone = `+91${phoneDigits}`;
   const emailRaw = String(formData.get("email") || "").trim();
   const email = emailRaw || null;
@@ -59,7 +59,7 @@ export async function createPublicBooking(slug: string, formData: FormData): Pro
     !/^[0-9a-f-]{36}$/i.test(serviceId) ||
     fullName.length < 2 ||
     fullName.length > 120 ||
-    !/^[6-9]\\d{9}$/.test(phoneDigits) ||
+    !/^[6-9]\d{9}$/.test(phoneDigits) ||
     (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) ||
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(startsAt) ||
     !/^[0-9a-f-]{36}$/i.test(idempotencyKey)
