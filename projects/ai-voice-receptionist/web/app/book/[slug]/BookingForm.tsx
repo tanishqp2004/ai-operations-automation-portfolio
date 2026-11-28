@@ -48,6 +48,7 @@ export default function BookingForm({
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState("");
   const [startsAt, setStartsAt] = useState("");
+  const [phoneDigits, setPhoneDigits] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [message, setMessage] = useState("Select a service and date to see available times.");
   const [loading, setLoading] = useState(false);
@@ -147,7 +148,27 @@ export default function BookingForm({
         </div>
         <div className="field">
           <label htmlFor="patient-phone">Phone number</label>
-          <input id="patient-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" minLength={8} maxLength={24} placeholder="+91 98765 43210" required />
+          <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--line, #d1d5db)", borderRadius: 10, overflow: "hidden" }}>
+            <span aria-hidden="true" style={{ padding: "12px 14px", background: "var(--paper, #f8fafc)", fontWeight: 600, whiteSpace: "nowrap" }}>+91</span>
+            <input
+              id="patient-phone"
+              name="phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              value={phoneDigits}
+              onChange={(event) => setPhoneDigits(event.target.value.replace(/\\D/g, "").slice(0, 10))}
+              minLength={10}
+              maxLength={10}
+              pattern="[6-9][0-9]{9}"
+              title="Enter a valid 10-digit Indian mobile number."
+              placeholder="98765 43210"
+              aria-describedby="patient-phone-help"
+              required
+              style={{ border: 0, borderRadius: 0, boxShadow: "none", flex: 1, minWidth: 0 }}
+            />
+          </div>
+          <span className="muted" id="patient-phone-help">Enter exactly 10 digits after +91.</span>
         </div>
       </div>
       <div className="field">
