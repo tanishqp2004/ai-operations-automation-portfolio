@@ -188,7 +188,7 @@ export default async function PublicBookingPage({
                   <div>
                     <div className="eyebrow">PLAN YOUR VISIT</div>
                     <h2>Clinic hours.</h2>
-                    <p className="sub">Appointment times are shown in the clinic's local timezone.</p>
+                    <p className="sub">Appointment times are shown in the clinic&apos;s local timezone.</p>
                   </div>
                   <span className="booking-section-mark">03 / 03</span>
                 </div>
