@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
-import { addService, createBusiness, saveHours, updateAppointment, selectActiveBusiness, deleteBusiness } from "./actions";
+import { addService, createBusiness, saveHours, selectActiveBusiness, deleteBusiness } from "./actions";
 import AppointmentForm from "./AppointmentForm";
 import AppointmentsManager from "./AppointmentsManager";
 import CreateClinicForm from "./CreateClinicForm";
