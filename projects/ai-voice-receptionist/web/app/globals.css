@@ -35,3 +35,55 @@
 .booking-section-heading h2,.booking-faq h2{letter-spacing:-.9px}
 .booking-footer{padding-bottom:8px}
 @media(max-width:760px){.booking-hero-art{min-height:205px;background:radial-gradient(ellipse at 50% 50%,#ffffffa8 0%,transparent 72%)}.booking-tooth{padding:9px}.booking-art-orbit-one{width:195px;height:195px}.booking-art-orbit-two{width:155px;height:155px}.booking-hero:before{width:280px;height:280px;right:-170px;top:-160px}.booking-hero:after{left:15%;bottom:-145px}}
+
+
+/* Stronger visual refresh: high-contrast clinic hero */
+.booking-hero{
+  background:
+    radial-gradient(circle at 78% 48%,#397d61 0%,#245d49 28%,transparent 53%),
+    linear-gradient(118deg,#123b2d 0%,#174b38 58%,#1d6046 100%);
+  border:1px solid #245b43;
+  box-shadow:0 24px 60px #123b2d24;
+  color:#f7fbf7;
+  min-height:390px;
+}
+.booking-hero-copy{position:relative;z-index:2}
+.booking-kicker{color:#b8e3c8}
+.booking-kicker-dot{background:#9cdbb2;box-shadow:0 0 0 5px #ffffff1c}
+.booking-title{color:#fff}
+.booking-title em{color:#b7e6c7}
+.booking-lede{color:#d3e5d9}
+.booking-lede strong{color:#fff}
+.booking-hero-points span{color:#e0eee4}
+.booking-hero-points b{color:#b7e6c7}
+.booking-hero-art{
+  min-height:330px;
+  background:radial-gradient(ellipse at 50% 50%,#b7e6c733 0%,#b7e6c714 42%,transparent 72%);
+}
+.booking-art-orbit-one{width:310px;height:310px;border-color:#a5d7b766}
+.booking-art-orbit-two{width:245px;height:245px;border-color:#d0f0dc80}
+.booking-tooth{
+  width:190px;height:200px;
+  background:linear-gradient(145deg,#fff 0%,#eaf8ef 100%);
+  border:1px solid #ffffff;
+  border-radius:42% 58% 48% 52% / 48% 44% 56% 52%;
+  box-shadow:0 28px 65px #061e164d,inset 0 2px 0 #fff;
+  padding:14px;
+}
+.booking-art-spark{color:#c3efd0}
+.booking-art-caption{
+  color:#174b38;
+  background:#f7fff9;
+  border-color:#d6eddd;
+  box-shadow:0 14px 35px #061e1638;
+}
+.booking-art-caption span{color:#176b52}
+.booking-form-card{box-shadow:0 18px 48px #193c2818!important}
+.booking-service-card,.booking-info-strip>div,.booking-hours-card{box-shadow:0 8px 28px #193c2810}
+@media(max-width:760px){
+  .booking-hero{min-height:0;padding-top:28px;padding-bottom:12px}
+  .booking-hero-art{min-height:220px}
+  .booking-art-orbit-one{width:210px;height:210px}
+  .booking-art-orbit-two{width:165px;height:165px}
+  .booking-tooth{width:138px;height:148px;padding:9px}
+}
