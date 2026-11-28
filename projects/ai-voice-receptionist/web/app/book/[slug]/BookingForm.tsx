@@ -70,9 +70,11 @@ export default function BookingForm({
 
     window.addEventListener("focus", refreshAvailability);
     document.addEventListener("visibilitychange", refreshAvailability);
+    const refreshInterval = window.setInterval(refreshAvailability, 30_000);
     return () => {
       window.removeEventListener("focus", refreshAvailability);
       document.removeEventListener("visibilitychange", refreshAvailability);
+      window.clearInterval(refreshInterval);
     };
   }, [router]);
 
